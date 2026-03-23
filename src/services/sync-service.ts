@@ -13,6 +13,7 @@ export class SyncService {
     domainId: string;
     scheduleTemplateId: string;
     externalRef: string;
+    metadata?: unknown;
     payload: unknown;
     requestedByUserId?: string;
   }) {
@@ -27,7 +28,7 @@ export class SyncService {
     });
 
     try {
-      await this.client.updateSchedule(args.externalRef, args.payload);
+      await this.client.updateSchedule(args.externalRef, args.payload, args.metadata);
       await this.db.scheduleTemplate.update({
         where: { id: args.scheduleTemplateId },
         data: {
@@ -66,6 +67,7 @@ export class SyncService {
     domainId: string;
     coverageGroupId: string;
     externalRef: string;
+    metadata?: unknown;
     payload: unknown;
     requestedByUserId?: string;
   }) {
@@ -80,7 +82,7 @@ export class SyncService {
     });
 
     try {
-      await this.client.updateCoverage(args.externalRef, args.payload);
+      await this.client.updateCoverage(args.externalRef, args.payload, args.metadata);
       await this.db.coverageGroup.update({
         where: { id: args.coverageGroupId },
         data: {

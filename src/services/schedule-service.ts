@@ -52,6 +52,7 @@ export class ScheduleService {
         domainId,
         scheduleTemplateId: updated.id,
         externalRef: mapping.externalRef,
+        metadata: mapping.metadataJson,
         payload: updated,
         requestedByUserId: access.user.id
       });

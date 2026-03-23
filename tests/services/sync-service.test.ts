@@ -25,12 +25,13 @@ describe("SyncService", () => {
       domainId: "domain_1",
       scheduleTemplateId: "schedule_1",
       externalRef: "external_1",
+      metadata: { domain: "rocketlevel" },
       payload: { foo: "bar" },
       requestedByUserId: "user_1"
     });
 
     expect(result.status).toBe("SUCCESS");
-    expect(client.updateSchedule).toHaveBeenCalledWith("external_1", { foo: "bar" });
+    expect(client.updateSchedule).toHaveBeenCalledWith("external_1", { foo: "bar" }, { domain: "rocketlevel" });
     expect(db.scheduleTemplate.update).toHaveBeenCalled();
     expect(db.syncJob.update).toHaveBeenCalled();
   });
@@ -58,6 +59,7 @@ describe("SyncService", () => {
       domainId: "domain_1",
       coverageGroupId: "coverage_1",
       externalRef: "external_2",
+      metadata: { domain: "rocketlevel", callqueue: "6000" },
       payload: { order: [] }
     });
 

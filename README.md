@@ -149,6 +149,7 @@ Required variables:
 - `ROUTING_API_TOKEN`
 - `SMTP_HOST`
 - `SMTP_PORT`
+- `SMTP_SECURE`
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
@@ -236,6 +237,58 @@ The vendor integration layer is abstracted behind:
 
 The UI and repository layer never depend on vendor names or vendor object naming. Backend mappings exist solely to connect local canonical records to the external routing engine.
 
+Current sync behavior:
+
+- schedule sync updates real timeframe resources for weekly hours and holiday closures
+- override sync creates managed specific-date timeframes plus answer rules for temporary routing changes
+- coverage sync updates a real queue plus queue-agent membership/order
+
+Recommended backend mapping metadata examples:
+
+Schedule mapping metadata:
+```json
+{
+  "domain": "customer-domain",
+  "user": "routing-user@customer-domain",
+  "weeklyTimeframeName": "Business Hours",
+  "weeklyTimeframeId": "optional-existing-timeframe-id",
+  "weeklyTimeframeScope": "domain",
+  "holidayTimeframeName": "Holiday Closures",
+  "holidayTimeframeId": "optional-existing-timeframe-id",
+  "holidayTimeframeScope": "domain",
+  "overrideTimeframePrefix": "RL-AI-Override",
+  "overrideTimeframeScope": "user"
+}
+```
+
+Coverage mapping metadata:
+```json
+{
+  "domain": "customer-domain",
+  "callqueue": "6000",
+  "dispatchType": "Linear Cascade",
+  "agentDispatchTimeoutSeconds": 15,
+  "memberMappings": [
+    {
+      "memberType": "USER",
+      "destinationNumber": "+15555550111",
+      "agentId": "1000@customer-domain"
+    },
+    {
+      "memberType": "EXTERNAL_NUMBER",
+      "destinationNumber": "+15555550112",
+      "agentId": "+15555550112"
+    }
+  ]
+}
+```
+
+Notes:
+
+- weekly schedule sync assumes onboarding already linked routing logic to the mapped timeframe names or IDs
+- override sync is metadata-driven and requires a mapped routing user
+- customer `USER` coverage members should have explicit `memberMappings` so the app never guesses hidden backend IDs
+
 ## Deployment
 
 ### Docker
@@ -279,6 +332,31 @@ npm run start
 6. Add TLS for `jcit.digital` or the final RocketLevel AI production domain.
 7. Add a health probe to `/login` or a dedicated future `/api/health` endpoint.
 
+### GitHub Auto-Deploy to Droplet
+
+This repo now includes [deploy.yml](/Users/mymacyou/Documents/RocketlevelPBX/.github/workflows/deploy.yml) for push-to-main deployment.
+
+Required GitHub repository secrets:
+
+- `DEPLOY_HOST`
+- `DEPLOY_USER`
+- `DEPLOY_PATH`
+- `DEPLOY_SSH_KEY`
+
+Expected deploy path example:
+
+- `/opt/rocketaischedule`
+
+The workflow will:
+
+- pull the latest `main`
+- install dependencies
+- generate Prisma client
+- run production migrations
+- reseed canonical sample/admin data
+- build with increased Node heap
+- restart PM2 with updated env
+
 ## CI Workflow
 
 GitHub Actions currently runs:
@@ -288,6 +366,8 @@ GitHub Actions currently runs:
 - `npm test`
 - `npm run build`
 
+On `main`, the deploy workflow can also push directly to the DigitalOcean droplet once the required secrets are configured.
+
 ## Assumptions
 
 - onboarding creates the underlying routing architecture before customer access begins
@@ -295,12 +375,11 @@ GitHub Actions currently runs:
 - customer users belong to exactly one domain
 - admin users may operate across all domains
 - allowed destination number policy is enforced with `AllowedNumberPool`
-- SMTP transport is configured outside the app for production email delivery
+- SMTP credentials are available and valid for the chosen mail relay
 
 ## Production Hardening TODOs
 
 - replace in-memory auth rate limiting with Redis
-- implement actual email delivery for password reset flow
 - add CSRF verification strategy for non-Auth.js forms if product scope expands
 - add richer server actions and optimistic UI for schedule and coverage editing
 - add domain-scoped feature flags

@@ -97,6 +97,7 @@ export class CoverageService {
         domainId,
         coverageGroupId: updated.id,
         externalRef: mapping.externalRef,
+        metadata: mapping.metadataJson,
         payload: updated,
         requestedByUserId: access.user.id
       });

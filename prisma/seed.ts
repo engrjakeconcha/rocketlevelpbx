@@ -227,13 +227,47 @@ async function main() {
           domainId: domain.id,
           mappingType: MappingType.SCHEDULE_TEMPLATE,
           internalKey: template.id,
-          externalRef: `rt-schedule-${domain.slug}`
+          externalRef: `rt-schedule-${domain.slug}`,
+          metadataJson: {
+            domain: domain.slug,
+            user: `routing-${domain.slug}`,
+            weeklyTimeframeName: "Business Hours",
+            weeklyTimeframeScope: "domain",
+            holidayTimeframeName: "Holiday Closures",
+            holidayTimeframeScope: "domain",
+            overrideTimeframePrefix: "RL-AI-Override",
+            overrideTimeframeScope: "user"
+          }
         },
         {
           domainId: domain.id,
           mappingType: MappingType.COVERAGE_GROUP,
           internalKey: group.id,
-          externalRef: `rt-coverage-${domain.slug}`
+          externalRef: `rt-coverage-${domain.slug}`,
+          metadataJson: {
+            domain: domain.slug,
+            callqueue: `queue-${domain.slug}`,
+            dispatchType: "Linear Cascade",
+            agentDispatchTimeoutSeconds: 15,
+            memberMappings: [
+              {
+                memberType: "USER",
+                destinationNumber: "+15555550111",
+                agentId: `frontdesk@${domain.slug}`
+              },
+              {
+                memberType: "EXTERNAL_NUMBER",
+                destinationNumber: "+15555550112",
+                agentId: "+15555550112"
+              }
+            ],
+            agentDefaults: {
+              availabilityType: "automatic",
+              wrapUpAllowanceSeconds: 10,
+              maxActiveCallsTotal: 1,
+              maxConcurrentSmsConversations: 1
+            }
+          }
         }
       ],
       skipDuplicates: true

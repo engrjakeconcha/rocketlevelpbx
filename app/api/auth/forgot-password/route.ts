@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { forgotPasswordSchema } from "@/lib/validators/auth";
 import { prisma } from "@/lib/db/prisma";
+import { getEnv } from "@/lib/env";
 import { authRateLimiter } from "@/lib/auth/rate-limit";
 import { auditRepository } from "@/repositories/audit-repository";
+import { sendPasswordResetEmail } from "@/services/mailer";
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for") ?? "local";
@@ -25,12 +27,22 @@ export async function POST(request: Request) {
 
   if (user) {
     const token = crypto.randomUUID() + crypto.randomUUID();
+    const env = getEnv();
     await prisma.user.update({
       where: { id: user.id },
       data: {
         resetToken: token,
         resetTokenExpiresAt: new Date(Date.now() + 1000 * 60 * 30)
       }
+    });
+
+    const resetUrl = new URL("/reset-password", env.APP_URL);
+    resetUrl.searchParams.set("token", token);
+
+    await sendPasswordResetEmail({
+      email: user.email,
+      name: user.name,
+      resetUrl: resetUrl.toString()
     });
 
     const membership = await prisma.membership.findFirst({ where: { userId: user.id } });
