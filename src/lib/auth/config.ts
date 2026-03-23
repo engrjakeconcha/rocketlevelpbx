@@ -8,7 +8,7 @@ import { verifyPassword } from "@/lib/auth/password";
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
   session: {
-    strategy: "database"
+    strategy: "jwt"
   },
   pages: {
     signIn: "/login"
@@ -50,15 +50,27 @@ export const authConfig: NextAuthConfig = {
     })
   ],
   callbacks: {
-    session: async ({ session, user }) => {
-      if (session.user) {
+    jwt: async ({ token, user }) => {
+      if (user) {
+        token.id = user.id;
+        token.role = "role" in user ? user.role : "CUSTOMER";
+      }
+
+      if (!token.role && token.sub) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
+          where: { id: token.sub },
           select: { role: true }
         });
 
-        session.user.id = user.id;
-        session.user.role = dbUser?.role ?? "CUSTOMER";
+        token.role = dbUser?.role ?? "CUSTOMER";
+      }
+
+      return token;
+    },
+    session: async ({ session, token }) => {
+      if (session.user) {
+        session.user.id = (token.sub ?? token.id) as string;
+        session.user.role = (token.role as "ADMIN" | "CUSTOMER" | undefined) ?? "CUSTOMER";
       }
 
       return session;
