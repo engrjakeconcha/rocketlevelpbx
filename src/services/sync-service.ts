@@ -27,6 +27,28 @@ export class SyncService {
       }
     });
 
+    const metadataConfigured =
+      !!args.metadata && typeof args.metadata === "object" && Object.keys(args.metadata as Record<string, unknown>).length > 0;
+
+    if (!metadataConfigured) {
+      await this.db.scheduleTemplate.update({
+        where: { id: args.scheduleTemplateId },
+        data: {
+          syncStatus: "SUCCESS",
+          lastSyncedAt: new Date(),
+          lastSyncMessage: "Saved in demo mode. Routing engine sync is not configured for this tenant yet."
+        }
+      });
+      await this.db.syncJob.update({
+        where: { id: job.id },
+        data: {
+          status: "SUCCESS",
+          completedAt: new Date()
+        }
+      });
+      return { status: "SUCCESS" as const, jobId: job.id, mode: "demo" as const };
+    }
+
     try {
       await this.client.updateSchedule(args.externalRef, args.payload, args.metadata);
       await this.db.scheduleTemplate.update({
@@ -80,6 +102,27 @@ export class SyncService {
         requestedByUserId: args.requestedByUserId
       }
     });
+
+    const metadataConfigured =
+      !!args.metadata && typeof args.metadata === "object" && Object.keys(args.metadata as Record<string, unknown>).length > 0;
+
+    if (!metadataConfigured) {
+      await this.db.coverageGroup.update({
+        where: { id: args.coverageGroupId },
+        data: {
+          syncStatus: "SUCCESS",
+          lastSyncedAt: new Date()
+        }
+      });
+      await this.db.syncJob.update({
+        where: { id: job.id },
+        data: {
+          status: "SUCCESS",
+          completedAt: new Date()
+        }
+      });
+      return { status: "SUCCESS" as const, jobId: job.id, mode: "demo" as const };
+    }
 
     try {
       await this.client.updateCoverage(args.externalRef, args.payload, args.metadata);

@@ -22,7 +22,24 @@ export default async function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      <WeeklyHoursEditor rules={schedule.weeklyRules.map((rule) => ({ ...rule, id: rule.id }))} />
+      <WeeklyHoursEditor
+        timezone={schedule.timezone}
+        rules={schedule.weeklyRules.map((rule) => ({ ...rule, id: rule.id }))}
+        holidayClosures={schedule.holidayClosures.map((holiday) => ({
+          id: holiday.id,
+          name: holiday.name,
+          startsAt: holiday.startsAt.toISOString(),
+          endsAt: holiday.endsAt.toISOString()
+        }))}
+        overrides={schedule.overrides.map((override) => ({
+          id: override.id,
+          label: override.label,
+          mode: override.mode,
+          startsAt: override.startsAt.toISOString(),
+          endsAt: override.endsAt.toISOString(),
+          targetNumber: override.targetNumber
+        }))}
+      />
       <HolidayManager holidays={schedule.holidayClosures} />
       <OverrideForm overrides={schedule.overrides} />
     </div>
