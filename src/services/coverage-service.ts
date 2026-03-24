@@ -43,6 +43,16 @@ export class CoverageService {
       throw new Error("Coverage member limit exceeded");
     }
 
+    if (validated.members.length !== group.members.length) {
+      throw new Error("Coverage members are fixed after onboarding and can only be updated or reordered");
+    }
+
+    const existingMemberIds = new Set(group.members.map((member) => member.id));
+
+    if (validated.members.some((member) => !member.id || !existingMemberIds.has(member.id))) {
+      throw new Error("Coverage changes must target existing members");
+    }
+
     const allowedPool = await prisma.allowedNumberPool.findMany({
       where: { domainId }
     });
