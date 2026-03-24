@@ -2,11 +2,14 @@ import { AuditActionType } from "@prisma/client";
 import { scheduleRepository } from "@/repositories/schedule-repository";
 import { auditRepository } from "@/repositories/audit-repository";
 import { prisma } from "@/lib/db/prisma";
-import { scheduleMutationSchema, type ScheduleMutationInput } from "@/lib/validators/schedule";
+import {
+  scheduleMutationRequestSchema,
+  type ScheduleMutationInput
+} from "@/lib/validators/schedule";
 import { assertDomainAccess } from "@/lib/tenant/guards";
 import type { AccessContext } from "@/types/access";
 import { SyncService } from "@/services/sync-service";
-import { RoutingEngineClient } from "@/services/routing-engine-client";
+import { RoutingEngineClient, type ManagedScheduleTimeframe } from "@/services/routing-engine-client";
 import { toJsonValue } from "@/lib/utils/json";
 
 export class ScheduleService {
@@ -31,12 +34,12 @@ export class ScheduleService {
       }
     });
 
-    let routingTimeframes: Awaited<ReturnType<RoutingEngineClient["listManagedScheduleTimeframes"]>> = [];
+    let routingTimeframes: ManagedScheduleTimeframe[] = [];
     let routingTimeframesError: string | null = null;
 
     if (mapping?.metadataJson) {
       try {
-        routingTimeframes = await this.routingClient.listManagedScheduleTimeframes(mapping.metadataJson);
+        routingTimeframes = await this.routingClient.listEditableTimeframes(mapping.metadataJson);
       } catch (error) {
         routingTimeframesError = error instanceof Error ? error.message : "Unable to load routing timeframes";
       }
@@ -51,14 +54,13 @@ export class ScheduleService {
 
   async updateSchedule(access: AccessContext, domainId: string, input: ScheduleMutationInput, requestId: string) {
     assertDomainAccess(access, domainId);
-    const validated = scheduleMutationSchema.parse(input);
+    const validated = scheduleMutationRequestSchema.parse(input);
     const template = await scheduleRepository.getPrimaryTemplate(domainId);
 
     if (!template) {
       throw new Error("No schedule template exists for this domain");
     }
 
-    const updated = await scheduleRepository.updateTemplate(template.id, validated);
     const mapping = await prisma.backendMapping.findFirst({
       where: {
         domainId,
@@ -66,6 +68,39 @@ export class ScheduleService {
         internalKey: template.id
       }
     });
+
+    if (validated.mode === "backend_timeframes") {
+      if (!mapping?.metadataJson) {
+        throw new Error("Existing timeframe mappings are not configured for this tenant");
+      }
+
+      await this.routingClient.updateSpecificDateTimeframes(mapping.metadataJson, validated.timeframes);
+      await prisma.scheduleTemplate.update({
+        where: { id: template.id },
+        data: {
+          syncStatus: "SUCCESS",
+          lastSyncedAt: new Date(),
+          lastSyncMessage: "Existing timeframes updated successfully"
+        }
+      });
+
+      await auditRepository.create({
+        actorId: access.user.id,
+        actorRole: access.user.role,
+        domainId,
+        actionType: AuditActionType.UPDATED,
+        objectType: "routing_timeframes",
+        objectId: template.id,
+        beforeJson: null,
+        afterJson: toJsonValue(validated.timeframes),
+        requestId,
+        message: "Updated existing timeframe date entries"
+      });
+
+      return this.getSchedule(access, domainId);
+    }
+
+    const updated = await scheduleRepository.updateTemplate(template.id, validated);
 
     await auditRepository.create({
       actorId: access.user.id,

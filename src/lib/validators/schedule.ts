@@ -56,10 +56,40 @@ export const scheduleOverrideInputSchema = z
   });
 
 export const scheduleMutationSchema = z.object({
+  mode: z.literal("local_schedule"),
   timezone: z.string().min(2),
   weeklyRules: z.array(weeklyRuleInputSchema).length(7),
   holidayClosures: z.array(holidayClosureInputSchema),
   overrides: z.array(scheduleOverrideInputSchema)
 });
 
-export type ScheduleMutationInput = z.infer<typeof scheduleMutationSchema>;
+export const timeframeDateEntrySchema = z
+  .object({
+    startsAt: z.string().datetime(),
+    endsAt: z.string().datetime()
+  })
+  .refine((value) => value.startsAt < value.endsAt, {
+    message: "Date entry end must be later than start"
+  });
+
+export const backendTimeframeSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  scope: z.enum(["domain", "user"]),
+  type: z.literal("specific-dates"),
+  entries: z.array(timeframeDateEntrySchema)
+});
+
+export const backendTimeframesMutationSchema = z.object({
+  mode: z.literal("backend_timeframes"),
+  timeframes: z.array(backendTimeframeSchema)
+});
+
+export const scheduleMutationRequestSchema = z.discriminatedUnion("mode", [
+  scheduleMutationSchema,
+  backendTimeframesMutationSchema
+]);
+
+export type ScheduleMutationInput = z.infer<typeof scheduleMutationRequestSchema>;
+export type LocalScheduleMutationInput = z.infer<typeof scheduleMutationSchema>;
+export type BackendTimeframesMutationInput = z.infer<typeof backendTimeframesMutationSchema>;

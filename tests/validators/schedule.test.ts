@@ -4,6 +4,7 @@ import { scheduleMutationSchema } from "@/lib/validators/schedule";
 describe("scheduleMutationSchema", () => {
   it("accepts a valid weekly schedule and overrides", () => {
     const result = scheduleMutationSchema.safeParse({
+      mode: "local_schedule",
       timezone: "America/New_York",
       weeklyRules: [
         { dayOfWeek: 0, isOpen: false },
@@ -37,6 +38,7 @@ describe("scheduleMutationSchema", () => {
 
   it("rejects invalid time windows", () => {
     const result = scheduleMutationSchema.safeParse({
+      mode: "local_schedule",
       timezone: "America/New_York",
       weeklyRules: [
         { dayOfWeek: 0, isOpen: false },

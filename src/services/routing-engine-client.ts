@@ -17,6 +17,11 @@ const scheduleMappingSchema = z.object({
   overrideTimeframeScope: timeframeScopeSchema.optional()
 });
 
+const timeframeLookupSchema = z.object({
+  domain: z.string().min(1),
+  user: z.string().min(1).optional()
+});
+
 const coverageMemberMappingSchema = z.object({
   memberType: z.enum(["USER", "EXTERNAL_NUMBER"]),
   destinationNumber: z.string().min(1),
@@ -95,9 +100,27 @@ type CoverageSyncPayload = {
 type RoutingTimeframe = {
   "timeframe-id"?: string;
   "timeframe-name"?: string;
+  "timeframe-type"?: string;
+  "timeframe-specific-dates-array"?: Array<{
+    "timeframe-specific-dates-begin-date"?: string;
+    "timeframe-specific-dates-begin-time"?: string;
+    "timeframe-specific-dates-end-date"?: string;
+    "timeframe-specific-dates-end-time"?: string;
+  }>;
 };
 
 export type ManagedScheduleTimeframe = {
+  id: string;
+  name: string;
+  scope: TimeframeScope;
+  type: "specific-dates";
+  entries: Array<{
+    startsAt: string;
+    endsAt: string;
+  }>;
+};
+
+export type LegacyManagedScheduleTimeframe = {
   key: "weekly" | "holiday" | "override";
   id?: string;
   name: string;
@@ -143,6 +166,19 @@ function formatTimePart(value: string | Date) {
   const hours = `${date.getUTCHours()}`.padStart(2, "0");
   const minutes = `${date.getUTCMinutes()}`.padStart(2, "0");
   return `${hours}${minutes}`;
+}
+
+function parseSpecificDate(datePart?: string, timePart?: string) {
+  if (!datePart || !timePart) {
+    return null;
+  }
+
+  const year = datePart.slice(0, 4);
+  const month = datePart.slice(4, 6);
+  const day = datePart.slice(6, 8);
+  const hours = timePart.slice(0, 2) || "00";
+  const minutes = timePart.slice(2, 4) || "00";
+  return `${year}-${month}-${day}T${hours}:${minutes}:00.000Z`;
 }
 
 function encodePath(value: string) {
@@ -423,7 +459,7 @@ export class RoutingEngineClient {
     const mapping = scheduleMappingSchema.parse(metadata ?? {});
     const weeklyScope = mapping.weeklyTimeframeScope ?? (mapping.user ? "user" : "domain");
     const holidayScope = mapping.holidayTimeframeScope ?? weeklyScope;
-    const results: ManagedScheduleTimeframe[] = [];
+    const results: LegacyManagedScheduleTimeframe[] = [];
 
     const weeklyTimeframes = await this.listTimeframes(mapping, weeklyScope);
     const weeklyMatch = mapping.weeklyTimeframeId
@@ -474,6 +510,75 @@ export class RoutingEngineClient {
     }
 
     return results;
+  }
+
+  async listEditableTimeframes(metadata?: unknown) {
+    const mapping = timeframeLookupSchema.parse(metadata ?? {});
+    const domainTimeframes = await this.listTimeframes(mapping, "domain");
+    const userTimeframes = mapping.user ? await this.listTimeframes(mapping, "user") : [];
+
+    const mapTimeframes = (items: RoutingTimeframe[], scope: TimeframeScope): ManagedScheduleTimeframe[] =>
+      items
+        .filter((timeframe) => timeframe["timeframe-id"] && timeframe["timeframe-type"] === "specific-dates")
+        .map((timeframe) => ({
+          id: timeframe["timeframe-id"] as string,
+          name: timeframe["timeframe-name"] ?? "Unnamed timeframe",
+          scope,
+          type: "specific-dates",
+          entries: (timeframe["timeframe-specific-dates-array"] ?? [])
+            .map((entry) => {
+              const startsAt = parseSpecificDate(
+                entry["timeframe-specific-dates-begin-date"],
+                entry["timeframe-specific-dates-begin-time"]
+              );
+              const endsAt = parseSpecificDate(
+                entry["timeframe-specific-dates-end-date"],
+                entry["timeframe-specific-dates-end-time"]
+              );
+
+              if (!startsAt || !endsAt) {
+                return null;
+              }
+
+              return { startsAt, endsAt };
+            })
+            .filter((entry): entry is { startsAt: string; endsAt: string } => entry !== null)
+        }));
+
+    return [...mapTimeframes(domainTimeframes, "domain"), ...mapTimeframes(userTimeframes, "user")];
+  }
+
+  async updateSpecificDateTimeframes(
+    metadata: unknown,
+    timeframes: Array<{
+      id: string;
+      name: string;
+      scope: TimeframeScope;
+      type: "specific-dates";
+      entries: Array<{ startsAt: string; endsAt: string }>;
+    }>
+  ) {
+    const mapping = timeframeLookupSchema.parse(metadata ?? {});
+
+    for (const timeframe of timeframes) {
+      await this.updateTimeframe(mapping, timeframe.scope, timeframe.id, {
+        "update-only": "yes",
+        "timeframe-specific-dates-array": timeframe.entries.map((entry) => ({
+          "timeframe-specific-dates-begin-date": formatDatePart(entry.startsAt),
+          "timeframe-specific-dates-begin-time": formatTimePart(entry.startsAt),
+          "timeframe-specific-dates-end-date": formatDatePart(entry.endsAt),
+          "timeframe-specific-dates-end-time": formatTimePart(entry.endsAt),
+          "timeframe-recurrence-type": "doesNotRecur",
+          "timeframe-recurrence-custom-interval": "",
+          "timeframe-recurrence-custom-interval-count": "",
+          "timeframe-recurrence-custom-interval-option": "",
+          "timeframe-recurrence-end-option": "never",
+          "timeframe-recurrence-end-date": ""
+        }))
+      });
+    }
+
+    return { ok: true };
   }
 
   private resolveAgentId(mapping: CoverageMapping, member: CoverageMemberPayload) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAccessContext } from "@/lib/tenant/access";
-import { scheduleMutationSchema } from "@/lib/validators/schedule";
+import { scheduleMutationRequestSchema } from "@/lib/validators/schedule";
 import { ScheduleService } from "@/services/schedule-service";
 import { getRequestId } from "@/lib/utils/request";
 
@@ -15,7 +15,7 @@ export async function PUT(request: Request) {
   const access = await requireAccessContext();
   const service = new ScheduleService();
   const payload = await request.json();
-  const parsed = scheduleMutationSchema.safeParse(payload);
+  const parsed = scheduleMutationRequestSchema.safeParse(payload);
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

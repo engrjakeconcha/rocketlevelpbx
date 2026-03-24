@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import type { ScheduleMutationInput } from "@/lib/validators/schedule";
+import type { LocalScheduleMutationInput } from "@/lib/validators/schedule";
 
 export const scheduleRepository = {
   async getPrimaryTemplate(domainId: string) {
@@ -13,7 +13,7 @@ export const scheduleRepository = {
     });
   },
 
-  async updateTemplate(templateId: string, input: ScheduleMutationInput) {
+  async updateTemplate(templateId: string, input: LocalScheduleMutationInput) {
     return prisma.$transaction(async (tx) => {
       const [existingWeeklyRules, existingHolidayClosures, existingOverrides] = await Promise.all([
         tx.weeklyScheduleRule.findMany({

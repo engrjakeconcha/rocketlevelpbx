@@ -31,12 +31,14 @@ type Override = {
 };
 
 type RoutingTimeframe = {
-  key: "weekly" | "holiday" | "override";
-  id?: string;
+  id: string;
   name: string;
   scope: "domain" | "user";
-  exists: boolean;
-  type: "days-of-week" | "specific-dates";
+  type: "specific-dates";
+  entries: Array<{
+    startsAt: string;
+    endsAt: string;
+  }>;
 };
 
 const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -66,11 +68,12 @@ export function ScheduleManager({
 }) {
   const [items, setItems] = useState(rules);
   const [holidays, setHolidays] = useState(holidayClosures);
+  const [timeframes, setTimeframes] = useState(routingTimeframes);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const sortedItems = useMemo(() => [...items].sort((left, right) => left.dayOfWeek - right.dayOfWeek), [items]);
-  const holidayTimeframe = routingTimeframes.find((timeframe) => timeframe.key === "holiday");
+  const usesLiveTimeframes = timeframes.length > 0;
 
   function updateRule(ruleId: string, next: Partial<Rule>) {
     setItems((current) => current.map((rule) => (rule.id === ruleId ? { ...rule, ...next } : rule)));
@@ -100,7 +103,55 @@ export function ScheduleManager({
     setHolidays((current) => current.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  function persist(nextMessage: string) {
+  function updateTimeframeEntry(
+    timeframeId: string,
+    entryIndex: number,
+    next: Partial<{ startsAt: string; endsAt: string }>
+  ) {
+    setTimeframes((current) =>
+      current.map((timeframe) =>
+        timeframe.id === timeframeId
+          ? {
+              ...timeframe,
+              entries: timeframe.entries.map((entry, index) => (index === entryIndex ? { ...entry, ...next } : entry))
+            }
+          : timeframe
+      )
+    );
+  }
+
+  function addTimeframeEntry(timeframeId: string) {
+    const startsAt = new Date();
+    startsAt.setUTCMinutes(0, 0, 0);
+    const endsAt = new Date(startsAt);
+    endsAt.setUTCHours(endsAt.getUTCHours() + 1);
+
+    setTimeframes((current) =>
+      current.map((timeframe) =>
+        timeframe.id === timeframeId
+          ? {
+              ...timeframe,
+              entries: [...timeframe.entries, { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() }]
+            }
+          : timeframe
+      )
+    );
+  }
+
+  function deleteTimeframeEntry(timeframeId: string, entryIndex: number) {
+    setTimeframes((current) =>
+      current.map((timeframe) =>
+        timeframe.id === timeframeId
+          ? {
+              ...timeframe,
+              entries: timeframe.entries.filter((_, index) => index !== entryIndex)
+            }
+          : timeframe
+      )
+    );
+  }
+
+  function saveLocalSchedule(nextMessage: string) {
     setMessage(null);
 
     startTransition(async () => {
@@ -110,6 +161,7 @@ export function ScheduleManager({
           "content-type": "application/json"
         },
         body: JSON.stringify({
+          mode: "local_schedule",
           timezone,
           weeklyRules: sortedItems.map((rule) => ({
             id: rule.id,
@@ -130,61 +182,136 @@ export function ScheduleManager({
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        setMessage(payload?.error?.formErrors?.[0] ?? "We could not save the timeframe changes. Please try again.");
+        setMessage(payload?.error?.formErrors?.[0] ?? "We could not save the schedule changes. Please try again.");
         return;
       }
 
       const payload = await response.json();
       setItems(payload.weeklyRules);
-      setHolidays(
-        payload.holidayClosures.map((holiday: Holiday) => ({
-          ...holiday
-        }))
-      );
+      setHolidays(payload.holidayClosures);
       setMessage(nextMessage);
     });
   }
 
-  return (
-    <div className="space-y-6">
+  function saveTimeframes() {
+    setMessage(null);
+
+    startTransition(async () => {
+      const response = await fetch("/api/schedule", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          mode: "backend_timeframes",
+          timeframes: timeframes.map((timeframe) => ({
+            id: timeframe.id,
+            name: timeframe.name,
+            scope: timeframe.scope,
+            type: timeframe.type,
+            entries: timeframe.entries
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setMessage(payload?.error?.formErrors?.[0] ?? "We could not save the timeframe changes. Please try again.");
+        return;
+      }
+
+      const payload = await response.json();
+      setTimeframes(payload.routingTimeframes ?? []);
+      setMessage("Existing timeframes updated.");
+    });
+  }
+
+  if (usesLiveTimeframes) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle>Connected Timeframes</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Existing Time Frames</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              Manage the current live time frames and add or remove specific dates without creating new ones.
+            </div>
+          </div>
+          <Button type="button" onClick={saveTimeframes} disabled={isPending}>
+            {isPending ? "Saving..." : "Save Time Frames"}
+          </Button>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {routingTimeframes.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-              No connected timeframes were returned for this tenant yet.
-            </div>
-          ) : null}
-          {routingTimeframes.map((timeframe) => (
-            <div key={`${timeframe.key}:${timeframe.id ?? timeframe.name}`} className="rounded-2xl border border-border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-medium">{timeframe.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {timeframe.type === "specific-dates" ? "Specific date / time timeframe" : "Weekly timeframe"} ·{" "}
-                    {timeframe.scope}
-                  </div>
-                </div>
-                <div className={`text-sm ${timeframe.exists ? "text-emerald-700" : "text-amber-700"}`}>
-                  {timeframe.exists ? "Connected" : "Missing"}
-                </div>
-              </div>
-            </div>
-          ))}
+        <CardContent className="space-y-6">
+          {message ? <div className="rounded-xl bg-muted px-4 py-3 text-sm text-foreground">{message}</div> : null}
           {routingTimeframesError ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               {routingTimeframesError}
             </div>
           ) : null}
+          {timeframes.map((timeframe) => (
+            <div key={timeframe.id} className="rounded-2xl border border-border p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">{timeframe.name}</div>
+                  <div className="text-sm text-muted-foreground">Scope: {timeframe.scope}</div>
+                </div>
+                <Button type="button" variant="outline" onClick={() => addTimeframeEntry(timeframe.id)} disabled={isPending}>
+                  Add Date
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {timeframe.entries.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No date entries yet.
+                  </div>
+                ) : null}
+                {timeframe.entries.map((entry, index) => (
+                  <div key={`${timeframe.id}-${index}`} className="grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-[1fr,1fr,auto]">
+                    <div>
+                      <Label>Start</Label>
+                      <Input
+                        type="datetime-local"
+                        value={toDatetimeLocalValue(entry.startsAt)}
+                        onChange={(event) =>
+                          updateTimeframeEntry(timeframe.id, index, { startsAt: toIsoValue(event.target.value) })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>End</Label>
+                      <Input
+                        type="datetime-local"
+                        value={toDatetimeLocalValue(entry.endsAt)}
+                        onChange={(event) =>
+                          updateTimeframeEntry(timeframe.id, index, { endsAt: toIsoValue(event.target.value) })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => deleteTimeframeEntry(timeframe.id, index)}
+                        disabled={isPending}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
+    );
+  }
 
+  return (
+    <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <CardTitle>Existing Weekly Timeframe</CardTitle>
-          <Button type="button" onClick={() => persist("Existing weekly timeframe updated.")} disabled={isPending}>
+          <Button type="button" onClick={() => saveLocalSchedule("Existing weekly timeframe updated.")} disabled={isPending}>
             {isPending ? "Saving..." : "Save Hours"}
           </Button>
         </CardHeader>
@@ -235,16 +362,14 @@ export function ScheduleManager({
           <div>
             <CardTitle>Timeframe Date Entries</CardTitle>
             <div className="text-sm text-muted-foreground">
-              {holidayTimeframe?.name
-                ? `Add or remove date entries for ${holidayTimeframe.name}.`
-                : "Add or remove date entries for the existing specific-date timeframe."}
+              Add or remove date entries for the existing specific-date timeframe.
             </div>
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={addHoliday} disabled={isPending}>
               Add Date
             </Button>
-            <Button type="button" onClick={() => persist("Timeframe date entries updated.")} disabled={isPending}>
+            <Button type="button" onClick={() => saveLocalSchedule("Timeframe date entries updated.")} disabled={isPending}>
               {isPending ? "Saving..." : "Save Dates"}
             </Button>
           </div>
