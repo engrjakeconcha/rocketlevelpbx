@@ -156,6 +156,14 @@ type RoutingCallqueue = {
   "callqueue-sim-ring-increment"?: number;
 };
 
+type RoutingDomain = {
+  domain?: string;
+  description?: string;
+  "time-zone"?: string;
+  "limits-max-users"?: number;
+  "limits-max-call-queues"?: number;
+};
+
 export type ManagedRoutingQueue = {
   id: string;
   name: string;
@@ -171,6 +179,16 @@ export type ManagedRoutingQueueMember = {
   enabled: boolean;
   requestConfirmationEnabled: boolean;
   sortOrder: number;
+};
+
+export type ManagedRoutingDomain = {
+  backendDomain: string;
+  description: string;
+  timezone: string;
+  policy: {
+    maxUsers: number;
+    maxCallQueues: number;
+  };
 };
 
 function toYesNo(value: boolean) {
@@ -478,6 +496,12 @@ export class RoutingEngineClient {
     });
   }
 
+  private async listDomains() {
+    return this.request<RoutingDomain[]>("/domains", {
+      method: "GET"
+    });
+  }
+
   private async createCallqueueAgent(mapping: CoverageMapping, body: Record<string, unknown>) {
     return this.request(`/domains/${encodePath(mapping.domain)}/callqueues/${encodePath(mapping.callqueue)}/agents`, {
       method: "POST",
@@ -635,6 +659,22 @@ export class RoutingEngineClient {
         extension: queue.callqueue ?? null,
         linearRoutingEnabled: (queue["callqueue-dispatch-type"] ?? "").toLowerCase().includes("linear"),
         snapshot: queue as Record<string, unknown>
+      }));
+  }
+
+  async listAccessibleDomains() {
+    const domains = await this.listDomains();
+
+    return domains
+      .filter((domain) => domain.domain)
+      .map((domain) => ({
+        backendDomain: domain.domain as string,
+        description: domain.description ?? (domain.domain as string),
+        timezone: domain["time-zone"]?.replace("US/", "America/") ?? "America/New_York",
+        policy: {
+          maxUsers: domain["limits-max-users"] ?? 0,
+          maxCallQueues: domain["limits-max-call-queues"] ?? 0
+        }
       }));
   }
 

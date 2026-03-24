@@ -112,6 +112,169 @@ export const adminRepository = {
     });
   },
 
+  async importAccessibleDomains(
+    domains: Array<{
+      backendDomain: string;
+      description: string;
+      timezone: string;
+      policy: {
+        maxUsers: number;
+        maxCallQueues: number;
+      };
+    }>
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const imported = [];
+
+      for (const incoming of domains) {
+        const existingScheduleMapping = await tx.backendMapping.findFirst({
+          where: {
+            mappingType: "SCHEDULE_TEMPLATE",
+            metadataJson: {
+              path: ["domain"],
+              equals: incoming.backendDomain
+            }
+          },
+          include: {
+            domain: true
+          }
+        });
+
+        const slugBase = incoming.backendDomain
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+        let slug = slugBase;
+        let slugSuffix = 2;
+
+        while (true) {
+          const conflict = await tx.domain.findFirst({
+            where: {
+              slug,
+              ...(existingScheduleMapping?.domainId ? { id: { not: existingScheduleMapping.domainId } } : {})
+            }
+          });
+
+          if (!conflict) {
+            break;
+          }
+
+          slug = `${slugBase}-${slugSuffix}`;
+          slugSuffix += 1;
+        }
+
+        const domain = existingScheduleMapping?.domain
+          ? await tx.domain.update({
+              where: { id: existingScheduleMapping.domainId },
+              data: {
+                name: incoming.description,
+                description: incoming.description,
+                slug,
+                timezone: incoming.timezone,
+                policyJson: {
+                  maxUsers: incoming.policy.maxUsers,
+                  maxCallQueues: incoming.policy.maxCallQueues
+                }
+              }
+            })
+          : await tx.domain.create({
+              data: {
+                name: incoming.description,
+                description: incoming.description,
+                slug,
+                timezone: incoming.timezone,
+                inboundNumber: null,
+                isActive: true,
+                policyJson: {
+                  maxUsers: incoming.policy.maxUsers,
+                  maxCallQueues: incoming.policy.maxCallQueues
+                }
+              }
+            });
+
+        const scheduleTemplate = existingScheduleMapping?.internalKey
+          ? await tx.scheduleTemplate.update({
+              where: {
+                id: existingScheduleMapping.internalKey
+              },
+              data: {
+                domainId: domain.id,
+                name: "Primary Business Hours",
+                timezone: incoming.timezone,
+                isDefault: true
+              }
+            })
+          : await tx.scheduleTemplate.create({
+              data: {
+                domainId: domain.id,
+                name: "Primary Business Hours",
+                timezone: incoming.timezone,
+                isDefault: true
+              }
+            });
+
+        const existingDomainScheduleMapping = await tx.backendMapping.findFirst({
+          where: {
+            domainId: domain.id,
+            mappingType: "SCHEDULE_TEMPLATE"
+          }
+        });
+
+        if (existingDomainScheduleMapping) {
+          await tx.backendMapping.update({
+            where: {
+              id: existingDomainScheduleMapping.id
+            },
+            data: {
+              internalKey: scheduleTemplate.id,
+              externalRef: incoming.backendDomain,
+              metadataJson: {
+                domain: incoming.backendDomain
+              }
+            }
+          });
+        } else {
+          await tx.backendMapping.create({
+            data: {
+              domainId: domain.id,
+              mappingType: "SCHEDULE_TEMPLATE",
+              internalKey: scheduleTemplate.id,
+              externalRef: incoming.backendDomain,
+              metadataJson: {
+                domain: incoming.backendDomain
+              }
+            }
+          });
+        }
+
+        await tx.notificationScenario.upsert({
+          where: {
+            domainId_name: {
+              domainId: domain.id,
+              name: "Primary Alert Notifications"
+            }
+          },
+          update: {
+            description: "Primary SMS and email notifications for the customer alert workflow.",
+            makeScenarioId: `make-${domain.slug}-primary-alerts`,
+            isActive: true
+          },
+          create: {
+            domainId: domain.id,
+            name: "Primary Alert Notifications",
+            description: "Primary SMS and email notifications for the customer alert workflow.",
+            makeScenarioId: `make-${domain.slug}-primary-alerts`
+          }
+        });
+
+        imported.push(domain);
+      }
+
+      return imported;
+    });
+  },
+
   async importRoutingSnapshot(data: {
     domainId: string;
     timeframes: Array<{
