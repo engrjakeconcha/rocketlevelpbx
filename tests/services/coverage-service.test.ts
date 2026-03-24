@@ -36,7 +36,7 @@ describe("CoverageService", () => {
     user: {
       id: "user_1",
       email: "pbxsupport@rocketlevelcommercial.com",
-      name: "Servpro Team Drake",
+      name: "Servpro Team Brandon",
       role: "CUSTOMER" as const
     },
     membership: {

@@ -62,8 +62,8 @@ async function main() {
     },
     {
       slug: "servpro-team-drake",
-      name: "Servpro Team Drake",
-      description: "Servpro Team Drake",
+      name: "Servpro Team Brandon",
+      description: "Servpro Team Brandon",
       timezone: "America/New_York"
     }
   ];
@@ -78,7 +78,7 @@ async function main() {
   > = {
     "servpro-team-drake": {
       email: "pbxsupport@rocketlevelcommercial.com",
-      name: "Servpro Team Drake",
+      name: "Servpro Team Brandon",
       password: "Admin1234"
     }
   };
