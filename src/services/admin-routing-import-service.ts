@@ -11,6 +11,20 @@ function extractDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function extractPhoneLikeDigits(value: string) {
+  const digits = extractDigits(value);
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return digits.slice(1);
+  }
+
+  if (digits.length >= 10) {
+    return digits.slice(0, 10);
+  }
+
+  return digits;
+}
+
 function inferQueueExternalId(args: {
   timeframeName: string;
   queues: Array<{
@@ -20,14 +34,14 @@ function inferQueueExternalId(args: {
     members: Array<{ destinationNumber: string }>;
   }>;
 }) {
-  const timeframeDigits = extractDigits(args.timeframeName);
+  const timeframeDigits = extractPhoneLikeDigits(args.timeframeName);
 
   if (!timeframeDigits) {
     return null;
   }
 
   for (const queue of args.queues) {
-    const memberMatch = queue.members.some((member) => extractDigits(member.destinationNumber).endsWith(timeframeDigits));
+    const memberMatch = queue.members.some((member) => extractPhoneLikeDigits(member.destinationNumber).endsWith(timeframeDigits));
     const queueMatch =
       extractDigits(queue.name).includes(timeframeDigits) ||
       extractDigits(queue.extension ?? "").includes(timeframeDigits) ||
@@ -137,6 +151,21 @@ export class AdminRoutingImportService {
         };
       })
       .filter((assignment): assignment is NonNullable<typeof assignment> => Boolean(assignment));
+
+    const unmatchedTimeframes = timeframes.filter(
+      (timeframe) => !assignments.some((assignment) => assignment.timeframeExternalId === timeframe.id)
+    );
+    const remainingQueueExternalIds = queuesWithMembers
+      .map((queue) => queue.externalId)
+      .filter((queueExternalId) => !assignments.some((assignment) => assignment.queueExternalId === queueExternalId));
+
+    if (unmatchedTimeframes.length === 1 && remainingQueueExternalIds.length === 1) {
+      assignments.push({
+        timeframeExternalId: unmatchedTimeframes[0].id,
+        queueExternalId: remainingQueueExternalIds[0],
+        locked: true
+      });
+    }
 
     const imported = await adminRepository.importRoutingSnapshot({
       domainId,
