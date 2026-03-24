@@ -59,6 +59,11 @@ enum MappingType {
   OVERRIDE
 }
 
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
 model User {
   id                     String                  @id @default(cuid())
   email                  String                  @unique
@@ -68,9 +73,11 @@ model User {
   isActive               Boolean                 @default(true)
   resetToken             String?
   resetTokenExpiresAt    DateTime?
+  notificationScenarioId String?
   memberships            Membership[]
   sessions               Session[]
   auditLogs              AuditLog[]              @relation("AuditActor")
+  notificationScenario   NotificationScenario?   @relation(fields: [notificationScenarioId], references: [id], onDelete: SetNull)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }
@@ -87,6 +94,7 @@ model Domain {
   memberships            Membership[]
   scheduleTemplates      ScheduleTemplate[]
   coverageGroups         CoverageGroup[]
+  notificationScenarios  NotificationScenario[]
   allowedNumberPool      AllowedNumberPool[]
   backendMappings        BackendMapping[]
   auditLogs              AuditLog[]
@@ -209,6 +217,39 @@ model BackendMapping {
   externalRef            String
   metadataJson           Json?
   domain                 Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model NotificationScenario {
+  id                     String                  @id @default(cuid())
+  domainId               String
+  name                   String
+  description            String?
+  makeScenarioId         String
+  makeWebhookUrl         String?
+  makeAuthHeaderName     String?
+  makeAuthHeaderValue    String?
+  isActive               Boolean                 @default(true)
+  domain                 Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  users                  User[]
+  contacts               NotificationContact[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@unique([domainId, name])
+  @@unique([domainId, makeScenarioId])
+}
+
+model NotificationContact {
+  id                     String                  @id @default(cuid())
+  notificationScenarioId String
+  label                  String
+  channel                NotificationChannel
+  destination            String
+  sortOrder              Int
+  isActive               Boolean                 @default(true)
+  notificationScenario   NotificationScenario    @relation(fields: [notificationScenarioId], references: [id], onDelete: Cascade)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }

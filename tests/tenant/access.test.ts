@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { UserRole } from "@prisma/client";
 import { assertDomainAccess } from "@/lib/tenant/guards";
-import type { AccessContext } from "@/types/access";
 
-function createContext(overrides: Partial<AccessContext>): AccessContext {
+function createContext(overrides: Record<string, unknown>) {
   return {
     user: {
       id: "user_1",
       email: "customer@example.com",
       name: "Customer",
-      role: UserRole.CUSTOMER
+      role: "CUSTOMER"
     },
     membership: null,
     isAdmin: false,
     domainId: "domain_1",
     domainSlug: "domain-one",
+    notificationScenarioId: "scenario_1",
+    notificationScenarioName: "Primary Alert Notifications",
     ...overrides
-  };
+  } as never;
 }
 
 describe("tenant access boundaries", () => {
@@ -30,11 +30,13 @@ describe("tenant access boundaries", () => {
       isAdmin: true,
       domainId: null,
       domainSlug: null,
+      notificationScenarioId: null,
+      notificationScenarioName: null,
       user: {
         id: "admin_1",
         email: "admin@example.com",
         name: "Admin",
-        role: UserRole.ADMIN
+        role: "ADMIN"
       }
     });
 

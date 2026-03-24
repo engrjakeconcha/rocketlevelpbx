@@ -19,7 +19,8 @@ export async function requireAccessContext(): Promise<AccessContext> {
         include: {
           domain: true
         }
-      }
+      },
+      notificationScenario: true
     }
   });
 
@@ -40,7 +41,9 @@ export async function requireAccessContext(): Promise<AccessContext> {
     membership,
     isAdmin,
     domainId: isAdmin ? null : membership?.domainId ?? null,
-    domainSlug: isAdmin ? null : membership?.domain.slug ?? null
+    domainSlug: isAdmin ? null : membership?.domain.slug ?? null,
+    notificationScenarioId: isAdmin ? null : user.notificationScenarioId ?? null,
+    notificationScenarioName: isAdmin ? null : user.notificationScenario?.name ?? null
   };
 }
 

@@ -14,6 +14,7 @@ This product is intentionally not a full internal administration portal. During 
 - approved coverage members
 - coverage order
 - approved destination numbers when policy allows
+- notification contact recipients for their assigned alert scenario
 
 Everything else remains hidden and immutable.
 
@@ -118,6 +119,7 @@ The client never has authority over tenancy. Client-submitted domain identifiers
 - Temporary overrides visibility
 - Coverage member visibility
 - Coverage reorder UI
+- Notification contact editing for the assigned Make scenario
 - Domain change log
 - Account page
 
@@ -147,6 +149,9 @@ Required variables:
 - `APP_URL`
 - `ROUTING_API_BASE_URL`
 - `ROUTING_API_TOKEN`
+- `MAKE_API_BASE_URL` optional, for scenario verification
+- `MAKE_API_TOKEN` optional, for scenario verification
+- `MAKE_API_TEAM_ID` optional
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_SECURE`
@@ -223,9 +228,11 @@ Route handlers implemented:
 
 - `GET/PUT /api/schedule`
 - `GET/PUT /api/coverage`
+- `GET/PUT /api/notifications`
 - `GET /api/overrides`
 - `GET /api/audit-logs`
 - `GET/POST /api/admin/backend-mappings`
+- `GET/PUT /api/admin/notification-scenarios`
 - `POST /api/sync/retry`
 - `POST /api/auth/forgot-password`
 - `POST /api/auth/reset-password`
@@ -238,6 +245,7 @@ The vendor integration layer is abstracted behind:
 - `SyncService`
 - `ScheduleService`
 - `CoverageService`
+- `MakeApiService`
 
 The UI and repository layer never depend on vendor names or vendor object naming. Backend mappings exist solely to connect local canonical records to the external routing engine.
 
@@ -246,6 +254,14 @@ Current sync behavior:
 - schedule sync updates real timeframe resources for weekly hours and holiday closures
 - override sync creates managed specific-date timeframes plus answer rules for temporary routing changes
 - coverage sync updates a real queue plus queue-agent membership/order
+- notification contact updates can post `{ eventType, scenarioId, emails, phones }` to a stored Make webhook per scenario
+
+Make integration behavior:
+
+- Admins can store a Make webhook URL plus optional auth header per notification scenario
+- Admins can verify a Make scenario ID automatically through the Make API
+- The verification flow accepts either a numeric scenario ID or a full Make scenario URL
+- Verified trigger metadata is displayed in the admin settings UI before saving
 
 Recommended backend mapping metadata examples:
 

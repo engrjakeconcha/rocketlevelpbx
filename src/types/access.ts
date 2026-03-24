@@ -6,4 +6,6 @@ export type AccessContext = {
   isAdmin: boolean;
   domainId: string | null;
   domainSlug: string | null;
+  notificationScenarioId: string | null;
+  notificationScenarioName: string | null;
 };

@@ -1,5 +1,15 @@
 import bcrypt from "bcryptjs";
-import { PrismaClient, SyncStatus, UserRole, OverrideMode, CoverageMemberType, CoverageMemberStatus, MappingType, AuditActionType } from "@prisma/client";
+import {
+  PrismaClient,
+  SyncStatus,
+  UserRole,
+  OverrideMode,
+  CoverageMemberType,
+  CoverageMemberStatus,
+  MappingType,
+  AuditActionType,
+  NotificationChannel
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -117,6 +127,62 @@ async function main() {
         name: specialCustomer?.name ?? `${domain.description} Owner`,
         passwordHash: customerPasswordHash,
         role: UserRole.CUSTOMER
+      }
+    });
+
+    const notificationScenario = await prisma.notificationScenario.upsert({
+      where: {
+        domainId_name: {
+          domainId: domain.id,
+          name: "Primary Alert Notifications"
+        }
+      },
+      update: {
+        description: "Primary SMS and email notifications for the customer alert workflow.",
+        makeScenarioId: `make-${domain.slug}-primary-alerts`,
+        makeWebhookUrl: null,
+        makeAuthHeaderName: null,
+        makeAuthHeaderValue: null,
+        isActive: true
+      },
+      create: {
+        domainId: domain.id,
+        name: "Primary Alert Notifications",
+        description: "Primary SMS and email notifications for the customer alert workflow.",
+        makeScenarioId: `make-${domain.slug}-primary-alerts`,
+        makeWebhookUrl: null,
+        makeAuthHeaderName: null,
+        makeAuthHeaderValue: null
+      }
+    });
+
+    await prisma.notificationContact.deleteMany({
+      where: { notificationScenarioId: notificationScenario.id }
+    });
+
+    await prisma.notificationContact.createMany({
+      data: [
+        {
+          notificationScenarioId: notificationScenario.id,
+          label: "Primary Alert Email",
+          channel: NotificationChannel.EMAIL,
+          destination: specialCustomer?.email ?? `owner@${domain.slug}.com`,
+          sortOrder: 1
+        },
+        {
+          notificationScenarioId: notificationScenario.id,
+          label: "Primary Alert SMS",
+          channel: NotificationChannel.SMS,
+          destination: "+15555550111",
+          sortOrder: 2
+        }
+      ]
+    });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        notificationScenarioId: notificationScenario.id
       }
     });
 

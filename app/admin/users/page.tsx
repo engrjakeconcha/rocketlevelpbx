@@ -13,7 +13,16 @@ export default async function UsersPage() {
         <CardTitle>Users</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <CreateUserForm domains={domains.map((domain) => ({ id: domain.id, description: domain.description }))} />
+        <CreateUserForm
+          domains={domains.map((domain) => ({
+            id: domain.id,
+            description: domain.description,
+            notificationScenarios: domain.notificationScenarios.map((scenario) => ({
+              id: scenario.id,
+              name: scenario.name
+            }))
+          }))}
+        />
         {users.map((user) => (
           <div key={user.id} className="rounded-2xl border border-border p-4">
             <div className="font-medium">
@@ -21,6 +30,9 @@ export default async function UsersPage() {
             </div>
             <div className="text-sm text-muted-foreground">
               {user.email} · {user.memberships.map((membership) => membership.domain.description).join(", ") || "Global admin"}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Notification scenario: {user.notificationScenario?.name ?? "Not assigned"}
             </div>
           </div>
         ))}

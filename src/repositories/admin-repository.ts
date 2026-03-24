@@ -7,7 +7,8 @@ export const adminRepository = {
       include: {
         memberships: {
           include: { domain: true }
-        }
+        },
+        notificationScenario: true
       },
       orderBy: { email: "asc" }
     });
@@ -16,6 +17,12 @@ export const adminRepository = {
   listDomains() {
     return prisma.domain.findMany({
       where: { isActive: true },
+      include: {
+        notificationScenarios: {
+          where: { isActive: true },
+          orderBy: { name: "asc" }
+        }
+      },
       orderBy: { description: "asc" }
     });
   },
@@ -26,20 +33,41 @@ export const adminRepository = {
     passwordHash: string;
     role: "ADMIN" | "CUSTOMER";
     domainId?: string;
+    notificationScenarioId?: string;
   }) {
     return prisma.$transaction(async (tx) => {
+      if (data.role === "CUSTOMER") {
+        if (!data.domainId || !data.notificationScenarioId) {
+          throw new Error("Customers must be assigned to both a domain and a notification scenario");
+        }
+
+        const scenario = await tx.notificationScenario.findFirst({
+          where: {
+            id: data.notificationScenarioId,
+            domainId: data.domainId,
+            isActive: true
+          }
+        });
+
+        if (!scenario) {
+          throw new Error("The selected notification scenario does not belong to the chosen domain");
+        }
+      }
+
       const user = await tx.user.create({
         data: {
           email: data.email,
           name: data.name,
           passwordHash: data.passwordHash,
           role: data.role,
-          isActive: true
+          isActive: true,
+          notificationScenarioId: data.role === "CUSTOMER" ? data.notificationScenarioId : undefined
         },
         include: {
           memberships: {
             include: { domain: true }
-          }
+          },
+          notificationScenario: true
         }
       });
 
@@ -58,7 +86,8 @@ export const adminRepository = {
         include: {
           memberships: {
             include: { domain: true }
-          }
+          },
+          notificationScenario: true
         }
       });
     });

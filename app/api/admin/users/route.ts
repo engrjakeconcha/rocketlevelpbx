@@ -19,7 +19,8 @@ export async function POST(request: Request) {
     name: parsed.data.name,
     passwordHash,
     role: parsed.data.role,
-    domainId: parsed.data.role === "CUSTOMER" ? parsed.data.domainId ?? undefined : undefined
+    domainId: parsed.data.role === "CUSTOMER" ? parsed.data.domainId ?? undefined : undefined,
+    notificationScenarioId: parsed.data.role === "CUSTOMER" ? parsed.data.notificationScenarioId ?? undefined : undefined
   });
 
   return NextResponse.json(user, { status: 201 });

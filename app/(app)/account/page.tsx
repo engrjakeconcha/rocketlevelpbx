@@ -13,6 +13,7 @@ export default async function AccountPage() {
         <div>Name: {access.user.name}</div>
         <div>Email: {access.user.email}</div>
         <div>Domain: {access.membership?.domain.description ?? "Admin access"}</div>
+        <div>Notification Scenario: {access.notificationScenarioName ?? "Not assigned"}</div>
       </CardContent>
     </Card>
   );

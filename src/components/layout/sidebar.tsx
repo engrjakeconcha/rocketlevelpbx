@@ -5,6 +5,7 @@ const customerItems = [
   { href: "/overview", label: "Overview" },
   { href: "/schedule", label: "Schedule" },
   { href: "/coverage", label: "On-Call Technician Queue" },
+  { href: "/notifications", label: "Notification Contacts" },
   { href: "/temporary-overrides", label: "Temporary Overrides" },
   { href: "/change-log", label: "Change Log" },
   { href: "/account", label: "Account" }

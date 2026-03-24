@@ -6,7 +6,8 @@ export const adminUserSchema = z
     email: z.string().email(),
     password: z.string().min(8).max(128),
     role: z.enum(["ADMIN", "CUSTOMER"]),
-    domainId: z.string().optional().nullable()
+    domainId: z.string().optional().nullable(),
+    notificationScenarioId: z.string().optional().nullable()
   })
   .superRefine((value, context) => {
     if (value.role === "CUSTOMER" && !value.domainId) {
@@ -17,11 +18,27 @@ export const adminUserSchema = z
       });
     }
 
+    if (value.role === "CUSTOMER" && !value.notificationScenarioId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Customers must be assigned to an existing notification scenario",
+        path: ["notificationScenarioId"]
+      });
+    }
+
     if (value.role === "ADMIN" && value.domainId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Admins cannot be assigned to a single customer domain at creation time",
         path: ["domainId"]
+      });
+    }
+
+    if (value.role === "ADMIN" && value.notificationScenarioId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Admins cannot be assigned to a notification scenario at creation time",
+        path: ["notificationScenarioId"]
       });
     }
   });
