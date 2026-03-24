@@ -39,20 +39,12 @@ describe("RoutingEngineClient", () => {
   it("maps schedule sync to timeframe and answerrule endpoints", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
-      const body = init?.body ? JSON.parse(init.body as string) : null;
 
       if (url.endsWith("/domains/rocketlevel/timeframes") && init?.method === "GET") {
-        return jsonResponse([]);
-      }
-
-      if (url.endsWith("/domains/rocketlevel/timeframes") && init?.method === "POST") {
-        if (body?.["timeframe-name"] === "Business Hours") {
-          return jsonResponse({ "timeframe-id": "weekly-tf-1", "timeframe-name": "Business Hours" });
-        }
-
-        if (body?.["timeframe-name"] === "Holiday Closures") {
-          return jsonResponse({ "timeframe-id": "holiday-tf-1", "timeframe-name": "Holiday Closures" });
-        }
+        return jsonResponse([
+          { "timeframe-id": "weekly-tf-1", "timeframe-name": "Business Hours" },
+          { "timeframe-id": "holiday-tf-1", "timeframe-name": "Holiday Closures" }
+        ]);
       }
 
       if (url.endsWith("/domains/rocketlevel/users/101%40rocketlevel/timeframes") && init?.method === "GET") {
@@ -177,5 +169,46 @@ describe("RoutingEngineClient", () => {
         }
       )
     ).rejects.toThrow("Missing backend member mapping");
+  });
+
+  it("fails schedule sync when the existing timeframe is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+
+        if (url.endsWith("/domains/rocketlevel/timeframes") && init?.method === "GET") {
+          return jsonResponse([]);
+        }
+
+        return jsonResponse({ code: 200 });
+      })
+    );
+
+    const client = new RoutingEngineClient();
+
+    await expect(
+      client.updateSchedule(
+        "external-ref",
+        {
+          weeklyRules: [
+            { dayOfWeek: 0, isOpen: false },
+            { dayOfWeek: 1, isOpen: true, startTime: "08:00", endTime: "17:00" },
+            { dayOfWeek: 2, isOpen: true, startTime: "08:00", endTime: "17:00" },
+            { dayOfWeek: 3, isOpen: true, startTime: "08:00", endTime: "17:00" },
+            { dayOfWeek: 4, isOpen: true, startTime: "08:00", endTime: "17:00" },
+            { dayOfWeek: 5, isOpen: true, startTime: "08:00", endTime: "15:00" },
+            { dayOfWeek: 6, isOpen: false }
+          ],
+          holidayClosures: [],
+          overrides: []
+        },
+        {
+          domain: "rocketlevel",
+          weeklyTimeframeName: "Business Hours",
+          weeklyTimeframeScope: "domain"
+        }
+      )
+    ).rejects.toThrow('Existing timeframe "Business Hours" was not found');
   });
 });

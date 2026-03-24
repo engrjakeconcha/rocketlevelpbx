@@ -97,6 +97,15 @@ type RoutingTimeframe = {
   "timeframe-name"?: string;
 };
 
+export type ManagedScheduleTimeframe = {
+  key: "weekly" | "holiday" | "override";
+  id?: string;
+  name: string;
+  scope: TimeframeScope;
+  exists: boolean;
+  type: "days-of-week" | "specific-dates";
+};
+
 type RoutingAnswerRule = {
   "time-frame"?: string;
 };
@@ -390,31 +399,81 @@ export class RoutingEngineClient {
     );
   }
 
-  private async ensureTimeframeId(
+  private async resolveExistingTimeframeId(
     mapping: { domain: string; user?: string },
     scope: TimeframeScope,
     timeframeId: string | undefined,
-    timeframeName: string,
-    createBody: Record<string, unknown>
+    timeframeName: string
   ) {
-    if (timeframeId) {
-      return timeframeId;
-    }
-
     const existing = await this.listTimeframes(mapping, scope);
-    const match = existing.find((timeframe) => timeframe["timeframe-name"] === timeframeName);
+    const match = timeframeId
+      ? existing.find((timeframe) => timeframe["timeframe-id"] === timeframeId)
+      : existing.find((timeframe) => timeframe["timeframe-name"] === timeframeName);
 
-    if (match?.["timeframe-id"]) {
+    if (match?.["timeframe-id"] && match?.["timeframe-name"]) {
       return match["timeframe-id"];
     }
 
-    const created = await this.createTimeframe(mapping, scope, createBody);
+    throw new Error(
+      `Existing timeframe "${timeframeName}" was not found. Onboarding must create it before customer edits are allowed.`
+    );
+  }
 
-    if (!created?.["timeframe-id"]) {
-      throw new Error(`Routing Engine API did not return a timeframe id for ${timeframeName}`);
+  async listManagedScheduleTimeframes(metadata?: unknown) {
+    const mapping = scheduleMappingSchema.parse(metadata ?? {});
+    const weeklyScope = mapping.weeklyTimeframeScope ?? (mapping.user ? "user" : "domain");
+    const holidayScope = mapping.holidayTimeframeScope ?? weeklyScope;
+    const results: ManagedScheduleTimeframe[] = [];
+
+    const weeklyTimeframes = await this.listTimeframes(mapping, weeklyScope);
+    const weeklyMatch = mapping.weeklyTimeframeId
+      ? weeklyTimeframes.find((timeframe) => timeframe["timeframe-id"] === mapping.weeklyTimeframeId)
+      : weeklyTimeframes.find((timeframe) => timeframe["timeframe-name"] === mapping.weeklyTimeframeName);
+
+    results.push({
+      key: "weekly",
+      id: weeklyMatch?.["timeframe-id"] ?? mapping.weeklyTimeframeId,
+      name: weeklyMatch?.["timeframe-name"] ?? mapping.weeklyTimeframeName,
+      scope: weeklyScope,
+      exists: Boolean(weeklyMatch?.["timeframe-id"]),
+      type: "days-of-week"
+    });
+
+    if (mapping.holidayTimeframeName) {
+      const holidayTimeframes = weeklyScope === holidayScope ? weeklyTimeframes : await this.listTimeframes(mapping, holidayScope);
+      const holidayMatch = mapping.holidayTimeframeId
+        ? holidayTimeframes.find((timeframe) => timeframe["timeframe-id"] === mapping.holidayTimeframeId)
+        : holidayTimeframes.find((timeframe) => timeframe["timeframe-name"] === mapping.holidayTimeframeName);
+
+      results.push({
+        key: "holiday",
+        id: holidayMatch?.["timeframe-id"] ?? mapping.holidayTimeframeId,
+        name: holidayMatch?.["timeframe-name"] ?? mapping.holidayTimeframeName,
+        scope: holidayScope,
+        exists: Boolean(holidayMatch?.["timeframe-id"]),
+        type: "specific-dates"
+      });
     }
 
-    return created["timeframe-id"];
+    if (mapping.user && mapping.overrideTimeframePrefix) {
+      const overrideScope = mapping.overrideTimeframeScope ?? "user";
+      const overrideTimeframes = await this.listTimeframes(mapping, overrideScope);
+
+      for (const timeframe of overrideTimeframes.filter((item) =>
+        item["timeframe-name"]?.startsWith(mapping.overrideTimeframePrefix ?? "")
+      )) {
+        results.push({
+          key: "override",
+          id: timeframe["timeframe-id"],
+          name: timeframe["timeframe-name"] ?? mapping.overrideTimeframePrefix,
+          scope: overrideScope,
+          exists: Boolean(timeframe["timeframe-id"]),
+          type: "specific-dates"
+        });
+      }
+    }
+
+    return results;
   }
 
   private resolveAgentId(mapping: CoverageMapping, member: CoverageMemberPayload) {
@@ -440,27 +499,21 @@ export class RoutingEngineClient {
     const weeklyScope = mapping.weeklyTimeframeScope ?? (mapping.user ? "user" : "domain");
     const holidayScope = mapping.holidayTimeframeScope ?? weeklyScope;
 
-    const weeklyTimeframeId = await this.ensureTimeframeId(mapping, weeklyScope, mapping.weeklyTimeframeId, mapping.weeklyTimeframeName, {
-      synchronous: true,
-      "timeframe-name": mapping.weeklyTimeframeName,
-      "timeframe-type": "days-of-week",
-      ...buildDayOfWeekTimeframeBody(schedule.weeklyRules)
-    });
+    const weeklyTimeframeId = await this.resolveExistingTimeframeId(
+      mapping,
+      weeklyScope,
+      mapping.weeklyTimeframeId,
+      mapping.weeklyTimeframeName
+    );
 
     await this.updateTimeframe(mapping, weeklyScope, weeklyTimeframeId, buildDayOfWeekTimeframeBody(schedule.weeklyRules));
 
     if (mapping.holidayTimeframeName) {
-      const holidayTimeframeId = await this.ensureTimeframeId(
+      const holidayTimeframeId = await this.resolveExistingTimeframeId(
         mapping,
         holidayScope,
         mapping.holidayTimeframeId,
-        mapping.holidayTimeframeName,
-        {
-          synchronous: true,
-          "timeframe-name": mapping.holidayTimeframeName,
-          "timeframe-type": "specific-dates",
-          "timeframe-specific-dates-array": buildHolidayEntries(schedule.holidayClosures)
-        }
+        mapping.holidayTimeframeName
       );
 
       await this.updateTimeframe(mapping, holidayScope, holidayTimeframeId, {
