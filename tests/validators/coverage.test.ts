@@ -7,7 +7,7 @@ describe("coverageMutationSchema", () => {
       coverageGroupId: "grp_123",
       members: [
         {
-          displayLabel: "Front Desk",
+          displayLabel: "Primary Tech",
           destinationNumber: "+15555550111",
           memberType: "USER",
           enabled: true,
@@ -15,7 +15,7 @@ describe("coverageMutationSchema", () => {
           sortOrder: 1
         },
         {
-          displayLabel: "Overflow",
+          displayLabel: "Backup 1",
           destinationNumber: "+15555550112",
           memberType: "EXTERNAL_NUMBER",
           enabled: true,

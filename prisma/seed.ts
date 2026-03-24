@@ -189,17 +189,24 @@ async function main() {
         members: {
           create: [
             {
-              displayLabel: "Front Desk",
+              displayLabel: "Primary Tech",
               memberType: CoverageMemberType.USER,
               destinationNumber: "+15555550111",
               sortOrder: 1,
               temporaryStatus: CoverageMemberStatus.ACTIVE
             },
             {
-              displayLabel: "Overflow",
+              displayLabel: "Backup 1",
               memberType: CoverageMemberType.EXTERNAL_NUMBER,
               destinationNumber: "+15555550112",
               sortOrder: 2,
+              temporaryStatus: CoverageMemberStatus.ACTIVE
+            },
+            {
+              displayLabel: "Backup 2",
+              memberType: CoverageMemberType.EXTERNAL_NUMBER,
+              destinationNumber: "+15555550113",
+              sortOrder: 3,
               temporaryStatus: CoverageMemberStatus.ACTIVE
             }
           ]
@@ -209,8 +216,9 @@ async function main() {
 
     await prisma.allowedNumberPool.createMany({
       data: [
-        { domainId: domain.id, phoneNumber: "+15555550111", label: "Front Desk" },
-        { domainId: domain.id, phoneNumber: "+15555550112", label: "Overflow" }
+        { domainId: domain.id, phoneNumber: "+15555550111", label: "Primary Tech" },
+        { domainId: domain.id, phoneNumber: "+15555550112", label: "Backup 1" },
+        { domainId: domain.id, phoneNumber: "+15555550113", label: "Backup 2" }
       ],
       skipDuplicates: true
     });
@@ -253,12 +261,17 @@ async function main() {
               {
                 memberType: "USER",
                 destinationNumber: "+15555550111",
-                agentId: `frontdesk@${domain.slug}`
+                agentId: `primarytech@${domain.slug}`
               },
               {
                 memberType: "EXTERNAL_NUMBER",
                 destinationNumber: "+15555550112",
                 agentId: "+15555550112"
+              },
+              {
+                memberType: "EXTERNAL_NUMBER",
+                destinationNumber: "+15555550113",
+                agentId: "+15555550113"
               }
             ],
             agentDefaults: {

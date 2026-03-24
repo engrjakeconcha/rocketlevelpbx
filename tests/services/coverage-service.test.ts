@@ -61,7 +61,7 @@ describe("CoverageService", () => {
       members: [
         {
           id: "member_1",
-          displayLabel: "Front Desk",
+          displayLabel: "Primary Tech",
           memberType: "USER",
           destinationNumber: "+15555550111",
           enabled: true,
@@ -70,12 +70,21 @@ describe("CoverageService", () => {
         },
         {
           id: "member_2",
-          displayLabel: "Overflow",
+          displayLabel: "Backup 1",
           memberType: "EXTERNAL_NUMBER",
           destinationNumber: "+15555550112",
           enabled: true,
           temporaryStatus: "ACTIVE",
           sortOrder: 2
+        },
+        {
+          id: "member_3",
+          displayLabel: "Backup 2",
+          memberType: "EXTERNAL_NUMBER",
+          destinationNumber: "+15555550113",
+          enabled: true,
+          temporaryStatus: "ACTIVE",
+          sortOrder: 3
         }
       ]
     } as never);
@@ -109,7 +118,7 @@ describe("CoverageService", () => {
           members: [
             {
               id: "member_1",
-              displayLabel: "Front Desk",
+              displayLabel: "Primary Tech",
               memberType: "USER",
               destinationNumber: "+15555550111",
               enabled: true,
@@ -118,7 +127,7 @@ describe("CoverageService", () => {
             },
             {
               id: "member_2",
-              displayLabel: "Overflow",
+              displayLabel: "Backup 1",
               memberType: "EXTERNAL_NUMBER",
               destinationNumber: "+15555550112",
               enabled: true,
@@ -127,12 +136,21 @@ describe("CoverageService", () => {
             },
             {
               id: "member_3",
-              displayLabel: "After Hours",
+              displayLabel: "Backup 2",
               memberType: "EXTERNAL_NUMBER",
               destinationNumber: "+15555550113",
               enabled: true,
               temporaryStatus: "ACTIVE",
               sortOrder: 3
+            },
+            {
+              id: "member_4",
+              displayLabel: "Backup 3",
+              memberType: "EXTERNAL_NUMBER",
+              destinationNumber: "+15555550114",
+              enabled: true,
+              temporaryStatus: "ACTIVE",
+              sortOrder: 4
             }
           ]
         },
@@ -152,22 +170,31 @@ describe("CoverageService", () => {
         coverageGroupId: "group_1",
         members: [
           {
-            id: "member_2",
-            displayLabel: "Overflow",
+            id: "member_3",
+            displayLabel: "Backup 2",
             memberType: "EXTERNAL_NUMBER",
-            destinationNumber: "+15555550112",
+            destinationNumber: "+15555550113",
             enabled: true,
             temporaryStatus: "ACTIVE",
             sortOrder: 1
           },
           {
             id: "member_1",
-            displayLabel: "Front Desk",
+            displayLabel: "Primary Tech",
             memberType: "USER",
             destinationNumber: "+15555550111",
             enabled: true,
             temporaryStatus: "ACTIVE",
             sortOrder: 2
+          },
+          {
+            id: "member_2",
+            displayLabel: "Backup 1",
+            memberType: "EXTERNAL_NUMBER",
+            destinationNumber: "+15555550112",
+            enabled: true,
+            temporaryStatus: "ACTIVE",
+            sortOrder: 3
           }
         ]
       },
@@ -178,8 +205,9 @@ describe("CoverageService", () => {
       "group_1",
       expect.objectContaining({
         members: [
-          expect.objectContaining({ id: "member_2", sortOrder: 1 }),
-          expect.objectContaining({ id: "member_1", sortOrder: 2 })
+          expect.objectContaining({ id: "member_3", sortOrder: 1 }),
+          expect.objectContaining({ id: "member_1", sortOrder: 2 }),
+          expect.objectContaining({ id: "member_2", sortOrder: 3 })
         ]
       })
     );

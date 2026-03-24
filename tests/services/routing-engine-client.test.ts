@@ -162,7 +162,7 @@ describe("RoutingEngineClient", () => {
           name: "Primary Coverage",
           members: [
             {
-              displayLabel: "Front Desk",
+              displayLabel: "Primary Tech",
               memberType: "USER",
               destinationNumber: "+15555550111",
               enabled: true,
