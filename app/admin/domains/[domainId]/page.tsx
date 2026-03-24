@@ -64,7 +64,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ d
               )}
             </div>
             <div className="space-y-3 rounded-2xl border border-border p-4">
-              <div className="font-medium">Stored On-Call Technician Queues</div>
+              <div className="font-medium">Stored Linked Queues</div>
               {domain.routingQueues.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No queues imported yet.</div>
               ) : (

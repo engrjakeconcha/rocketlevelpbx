@@ -555,9 +555,9 @@ export function ScheduleManager({
                 <div className="mt-6 space-y-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="font-medium">On-Call Technician Queue</div>
+                      <div className="font-medium">Assigned Numbers</div>
                       <div className="text-sm text-muted-foreground">
-                        This queue is locked to the timeframe. Customers can update numbers and order only.
+                        The linked queue stays locked to this timeframe. Customers can update numbers and order only.
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -565,7 +565,7 @@ export function ScheduleManager({
                         Add Number
                       </Button>
                       <Button type="button" onClick={() => saveLinkedQueue(timeframe.id)} disabled={isPending}>
-                        {isPending ? "Saving..." : "Save Queue"}
+                        {isPending ? "Saving..." : "Save Numbers"}
                       </Button>
                     </div>
                   </div>

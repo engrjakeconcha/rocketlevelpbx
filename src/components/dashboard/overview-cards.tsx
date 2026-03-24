@@ -4,22 +4,17 @@ import { StatusBadge } from "@/components/ui/status-badge";
 export function OverviewCards({
   domainName,
   activeStatus,
-  activeCoverageMembers,
   timezone,
-  lastSyncedAt,
-  overrideStatus
+  lastSyncedAt
 }: {
   domainName: string;
   activeStatus: { status: "Open" | "Closed" | "Unknown"; source: string };
-  activeCoverageMembers: number;
   timezone: string;
   lastSyncedAt: Date | null;
-  overrideStatus: { label: string } | null;
 }) {
   const items = [
     { label: "Domain", value: domainName },
     { label: "Timezone", value: timezone },
-    { label: "On-Call Technicians", value: `${activeCoverageMembers}` },
     { label: "Last Synced", value: lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "Pending" }
   ];
 
@@ -33,12 +28,11 @@ export function OverviewCards({
             <div className="flex flex-wrap items-center gap-3">
               {activeStatus.status === "Unknown" ? null : <StatusBadge status={activeStatus.status as "Open" | "Closed"} />}
               <div className="text-sm text-white/75">{activeStatus.source}</div>
-              {overrideStatus ? <div className="rounded-full bg-white/10 px-3 py-1 text-sm">{overrideStatus.label}</div> : null}
             </div>
           </div>
         </CardContent>
       </Card>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => (
           <Card key={item.label}>
             <CardHeader>

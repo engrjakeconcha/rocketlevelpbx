@@ -1,9 +1,5 @@
-import { OverrideForm } from "@/components/schedule/override-form";
-import { requireAccessContext } from "@/lib/tenant/access";
-import { scheduleRepository } from "@/repositories/schedule-repository";
+import { redirect } from "next/navigation";
 
-export default async function TemporaryOverridesPage() {
-  const access = await requireAccessContext();
-  const schedule = await scheduleRepository.getPrimaryTemplate(access.domainId!);
-  return <OverrideForm overrides={schedule?.overrides ?? []} />;
+export default function TemporaryOverridesPage() {
+  redirect("/schedule");
 }

@@ -9,7 +9,7 @@ export function OverrideForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Temporary Overrides</CardTitle>
+        <CardTitle>Schedule Exceptions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {overrides.map((override) => (
