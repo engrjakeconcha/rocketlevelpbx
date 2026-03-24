@@ -25,7 +25,7 @@ describe("RoutingEngineClient", () => {
       SMTP_PORT: "587",
       SMTP_USER: "smtp-user",
       SMTP_PASS: "smtp-pass",
-      SMTP_FROM: "RocketLevel AI <no-reply@example.com>",
+      SMTP_FROM: "RocketLevel AI <voice@rocketlevel.com>",
       REDIS_URL: ""
     };
   });

@@ -155,6 +155,10 @@ Required variables:
 - `SMTP_FROM`
 - `REDIS_URL` optional
 
+Recommended sender:
+
+- `SMTP_FROM="RocketLevel AI <voice@rocketlevel.com>"`
+
 Default `APP_URL` should point to:
 
 - `https://jcit.digital`
