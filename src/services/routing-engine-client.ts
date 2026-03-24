@@ -106,6 +106,9 @@ type RoutingTimeframe = {
     "timeframe-specific-dates-begin-time"?: string;
     "timeframe-specific-dates-end-date"?: string;
     "timeframe-specific-dates-end-time"?: string;
+    "timeframe-recurrence-type"?: string;
+    "timeframe-recurrence-custom-interval-count"?: string;
+    "timeframe-recurrence-custom-interval"?: string;
   }>;
 };
 
@@ -117,6 +120,9 @@ export type ManagedScheduleTimeframe = {
   entries: Array<{
     startsAt: string;
     endsAt: string;
+    recurrenceType: "doesNotRecur" | "custom";
+    recurrenceIntervalCount?: number;
+    recurrenceIntervalUnit?: "weeks" | "months";
   }>;
 };
 
@@ -135,6 +141,36 @@ type RoutingAnswerRule = {
 
 type RoutingAgent = {
   "callqueue-agent-id": string;
+  "callqueue-agent-answer-confirmation-enabled"?: string;
+  "callqueue-agent-availability-type"?: string;
+  "callqueue-agent-entry-type"?: string;
+  "ordinal-order"?: number;
+};
+
+type RoutingCallqueue = {
+  callqueue?: string;
+  description?: string;
+  "callqueue-dispatch-type"?: string;
+  "callqueue-agent-dispatch-timeout-seconds"?: number;
+  "callqueue-sim-ring-1st-round"?: number;
+  "callqueue-sim-ring-increment"?: number;
+};
+
+export type ManagedRoutingQueue = {
+  id: string;
+  name: string;
+  extension: string | null;
+  linearRoutingEnabled: boolean;
+  snapshot: Record<string, unknown>;
+};
+
+export type ManagedRoutingQueueMember = {
+  externalId: string;
+  displayLabel: string;
+  destinationNumber: string;
+  enabled: boolean;
+  requestConfirmationEnabled: boolean;
+  sortOrder: number;
 };
 
 function toYesNo(value: boolean) {
@@ -181,8 +217,33 @@ function parseSpecificDate(datePart?: string, timePart?: string) {
   return `${year}-${month}-${day}T${hours}:${minutes}:00.000Z`;
 }
 
+function parseRecurrence(entry: NonNullable<RoutingTimeframe["timeframe-specific-dates-array"]>[number]) {
+  const recurrenceType = entry["timeframe-recurrence-type"];
+  const recurrenceUnit = entry["timeframe-recurrence-custom-interval"];
+  const recurrenceCount = Number(entry["timeframe-recurrence-custom-interval-count"] || 0);
+
+  if (recurrenceType === "custom" && (recurrenceUnit === "weeks" || recurrenceUnit === "months") && recurrenceCount > 0) {
+    return {
+      recurrenceType: "custom" as const,
+      recurrenceIntervalCount: recurrenceCount,
+      recurrenceIntervalUnit: recurrenceUnit as "weeks" | "months"
+    };
+  }
+
+  return {
+    recurrenceType: "doesNotRecur" as const
+  };
+}
+
 function encodePath(value: string) {
   return encodeURIComponent(value);
+}
+
+function normalizeDomainLookup(metadata?: unknown) {
+  const mapping = timeframeLookupSchema.parse(metadata ?? {});
+  return {
+    domain: mapping.domain
+  };
 }
 
 function buildScopePath(mapping: { domain: string; user?: string }, scope: TimeframeScope) {
@@ -411,6 +472,12 @@ export class RoutingEngineClient {
     );
   }
 
+  private async listCallqueues(domain: string) {
+    return this.request<RoutingCallqueue[]>(`/domains/${encodePath(domain)}/callqueues`, {
+      method: "GET"
+    });
+  }
+
   private async createCallqueueAgent(mapping: CoverageMapping, body: Record<string, unknown>) {
     return this.request(`/domains/${encodePath(mapping.domain)}/callqueues/${encodePath(mapping.callqueue)}/agents`, {
       method: "POST",
@@ -520,32 +587,80 @@ export class RoutingEngineClient {
     const mapTimeframes = (items: RoutingTimeframe[], scope: TimeframeScope): ManagedScheduleTimeframe[] =>
       items
         .filter((timeframe) => timeframe["timeframe-id"] && timeframe["timeframe-type"] === "specific-dates")
-        .map((timeframe) => ({
-          id: timeframe["timeframe-id"] as string,
-          name: timeframe["timeframe-name"] ?? "Unnamed timeframe",
-          scope,
-          type: "specific-dates",
-          entries: (timeframe["timeframe-specific-dates-array"] ?? [])
-            .map((entry) => {
-              const startsAt = parseSpecificDate(
-                entry["timeframe-specific-dates-begin-date"],
-                entry["timeframe-specific-dates-begin-time"]
-              );
-              const endsAt = parseSpecificDate(
-                entry["timeframe-specific-dates-end-date"],
-                entry["timeframe-specific-dates-end-time"]
-              );
+        .map((timeframe) => {
+          const parsedEntries: ManagedScheduleTimeframe["entries"] = [];
 
-              if (!startsAt || !endsAt) {
-                return null;
-              }
+          for (const entry of timeframe["timeframe-specific-dates-array"] ?? []) {
+            const startsAt = parseSpecificDate(
+              entry["timeframe-specific-dates-begin-date"],
+              entry["timeframe-specific-dates-begin-time"]
+            );
+            const endsAt = parseSpecificDate(
+              entry["timeframe-specific-dates-end-date"],
+              entry["timeframe-specific-dates-end-time"]
+            );
 
-              return { startsAt, endsAt };
-            })
-            .filter((entry): entry is { startsAt: string; endsAt: string } => entry !== null)
-        }));
+            if (!startsAt || !endsAt) {
+              continue;
+            }
+
+            parsedEntries.push({
+              startsAt,
+              endsAt,
+              ...parseRecurrence(entry)
+            });
+          }
+
+          return {
+            id: timeframe["timeframe-id"] as string,
+            name: timeframe["timeframe-name"] ?? "Unnamed timeframe",
+            scope,
+            type: "specific-dates" as const,
+            entries: parsedEntries
+          };
+        });
 
     return [...mapTimeframes(domainTimeframes, "domain"), ...mapTimeframes(userTimeframes, "user")];
+  }
+
+  async listDomainCallqueues(metadata?: unknown) {
+    const { domain } = normalizeDomainLookup(metadata);
+    const queues = await this.listCallqueues(domain);
+
+    return queues
+      .filter((queue) => queue.callqueue)
+      .map((queue) => ({
+        id: queue.callqueue as string,
+        name: queue.description ?? `Queue ${queue.callqueue}`,
+        extension: queue.callqueue ?? null,
+        linearRoutingEnabled: (queue["callqueue-dispatch-type"] ?? "").toLowerCase().includes("linear"),
+        snapshot: queue as Record<string, unknown>
+      }));
+  }
+
+  async listCallqueueMembers(args: { domain: string; callqueue: string }) {
+    const mapping: CoverageMapping = {
+      domain: args.domain,
+      callqueue: args.callqueue,
+      memberMappings: []
+    };
+    const agents = await this.listCallqueueAgents(mapping);
+
+    return agents
+      .filter((agent) => agent["callqueue-agent-id"])
+      .map((agent) => {
+        const destinationNumber = normalizePhoneNumber(agent["callqueue-agent-id"]);
+
+        return {
+          externalId: agent["callqueue-agent-id"],
+          displayLabel: destinationNumber,
+          destinationNumber,
+          enabled: agent["callqueue-agent-availability-type"] !== "disabled",
+          requestConfirmationEnabled: agent["callqueue-agent-answer-confirmation-enabled"] === "yes",
+          sortOrder: agent["ordinal-order"] ?? Number.MAX_SAFE_INTEGER
+        };
+      })
+      .sort((left, right) => left.sortOrder - right.sortOrder);
   }
 
   async updateSpecificDateTimeframes(
@@ -555,7 +670,13 @@ export class RoutingEngineClient {
       name: string;
       scope: TimeframeScope;
       type: "specific-dates";
-      entries: Array<{ startsAt: string; endsAt: string }>;
+      entries: Array<{
+        startsAt: string;
+        endsAt: string;
+        recurrenceType: "doesNotRecur" | "custom";
+        recurrenceIntervalCount?: number;
+        recurrenceIntervalUnit?: "weeks" | "months";
+      }>;
     }>
   ) {
     const mapping = timeframeLookupSchema.parse(metadata ?? {});
@@ -568,14 +689,77 @@ export class RoutingEngineClient {
           "timeframe-specific-dates-begin-time": formatTimePart(entry.startsAt),
           "timeframe-specific-dates-end-date": formatDatePart(entry.endsAt),
           "timeframe-specific-dates-end-time": formatTimePart(entry.endsAt),
-          "timeframe-recurrence-type": "doesNotRecur",
-          "timeframe-recurrence-custom-interval": "",
-          "timeframe-recurrence-custom-interval-count": "",
+          "timeframe-recurrence-type": entry.recurrenceType,
+          "timeframe-recurrence-custom-interval":
+            entry.recurrenceType === "custom" ? entry.recurrenceIntervalUnit ?? "weeks" : "",
+          "timeframe-recurrence-custom-interval-count":
+            entry.recurrenceType === "custom" ? entry.recurrenceIntervalCount ?? 1 : "",
           "timeframe-recurrence-custom-interval-option": "",
           "timeframe-recurrence-end-option": "never",
           "timeframe-recurrence-end-date": ""
         }))
       });
+    }
+
+    return { ok: true };
+  }
+
+  async updateLinkedQueueMembers(args: {
+    domain: string;
+    callqueue: string;
+    members: Array<{
+      destinationNumber: string;
+      displayLabel: string;
+      sortOrder: number;
+      enabled: boolean;
+      requestConfirmationEnabled: boolean;
+    }>;
+  }) {
+    const mapping: CoverageMapping = {
+      domain: args.domain,
+      callqueue: args.callqueue,
+      memberMappings: [],
+      agentDefaults: {
+        answerConfirmationEnabled: true,
+        availabilityType: "automatic",
+        autoAnswerEnabled: false,
+        wrapUpAllowanceSeconds: 10,
+        maxActiveCallsTotal: 1,
+        maxConcurrentSmsConversations: 1
+      }
+    };
+
+    const currentAgents = await this.listCallqueueAgents(mapping);
+    const desiredAgentIds = new Set(args.members.map((member) => normalizePhoneNumber(member.destinationNumber)));
+
+    for (const agent of currentAgents) {
+      if (!desiredAgentIds.has(agent["callqueue-agent-id"])) {
+        await this.deleteCallqueueAgent(mapping, agent["callqueue-agent-id"]);
+      }
+    }
+
+    for (const member of args.members.sort((left, right) => left.sortOrder - right.sortOrder)) {
+      const agentId = normalizePhoneNumber(member.destinationNumber);
+      const exists = currentAgents.some((agent) => agent["callqueue-agent-id"] === agentId);
+      const body = {
+        "callqueue-agent-availability-type": member.enabled ? "automatic" : "disabled",
+        "callqueue-agent-dispatch-order-ordinal": member.sortOrder,
+        "callqueue-agent-answer-confirmation-enabled": toYesNo(member.requestConfirmationEnabled),
+        "auto-answer-enabled": "no",
+        "callqueue-agent-wrap-up-allowance-seconds": 10,
+        "limits-max-active-calls-total": 1,
+        "callqueue-agent-max-concurrent-sms-conversations": 1
+      };
+
+      if (!exists) {
+        await this.createCallqueueAgent(mapping, {
+          "callqueue-agent-id": agentId,
+          ...body
+        });
+        continue;
+      }
+
+      await this.updateCallqueueAgent(mapping, agentId, body);
     }
 
     return { ok: true };

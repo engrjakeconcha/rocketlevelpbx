@@ -38,7 +38,23 @@ type RoutingTimeframe = {
   entries: Array<{
     startsAt: string;
     endsAt: string;
+    recurrenceType: "doesNotRecur" | "custom";
+    recurrenceIntervalCount?: number;
+    recurrenceIntervalUnit?: "weeks" | "months";
   }>;
+  linkedQueue: {
+    id: string;
+    name: string;
+    extension?: string | null;
+    members: Array<{
+      id: string;
+      displayLabel: string;
+      destinationNumber: string;
+      sortOrder: number;
+      enabled: boolean;
+      requestConfirmationEnabled: boolean;
+    }>;
+  } | null;
 };
 
 const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -106,7 +122,13 @@ export function ScheduleManager({
   function updateTimeframeEntry(
     timeframeId: string,
     entryIndex: number,
-    next: Partial<{ startsAt: string; endsAt: string }>
+    next: Partial<{
+      startsAt: string;
+      endsAt: string;
+      recurrenceType: "doesNotRecur" | "custom";
+      recurrenceIntervalCount?: number;
+      recurrenceIntervalUnit?: "weeks" | "months";
+    }>
   ) {
     setTimeframes((current) =>
       current.map((timeframe) =>
@@ -131,7 +153,14 @@ export function ScheduleManager({
         timeframe.id === timeframeId
           ? {
               ...timeframe,
-              entries: [...timeframe.entries, { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() }]
+              entries: [
+                ...timeframe.entries,
+                {
+                  startsAt: startsAt.toISOString(),
+                  endsAt: endsAt.toISOString(),
+                  recurrenceType: "doesNotRecur"
+                }
+              ]
             }
           : timeframe
       )
@@ -149,6 +178,179 @@ export function ScheduleManager({
           : timeframe
       )
     );
+  }
+
+  function updateQueueMember(
+    timeframeId: string,
+    memberIndex: number,
+    next: Partial<{
+      displayLabel: string;
+      destinationNumber: string;
+      enabled: boolean;
+      requestConfirmationEnabled: boolean;
+    }>
+  ) {
+    setTimeframes((current) =>
+      current.map((timeframe) =>
+        timeframe.id === timeframeId && timeframe.linkedQueue
+          ? {
+              ...timeframe,
+              linkedQueue: {
+                ...timeframe.linkedQueue,
+                members: timeframe.linkedQueue.members.map((member, index) =>
+                  index === memberIndex ? { ...member, ...next } : member
+                )
+              }
+            }
+          : timeframe
+      )
+    );
+  }
+
+  function addQueueMember(timeframeId: string) {
+    setTimeframes((current) =>
+      current.map((timeframe) =>
+        timeframe.id === timeframeId && timeframe.linkedQueue
+          ? {
+              ...timeframe,
+              linkedQueue: {
+                ...timeframe.linkedQueue,
+                members: [
+                  ...timeframe.linkedQueue.members,
+                  {
+                    id: `new-${Date.now()}-${Math.random()}`,
+                    displayLabel: `Tech ${timeframe.linkedQueue.members.length + 1}`,
+                    destinationNumber: "",
+                    sortOrder: timeframe.linkedQueue.members.length + 1,
+                    enabled: true,
+                    requestConfirmationEnabled: true
+                  }
+                ]
+              }
+            }
+          : timeframe
+      )
+    );
+  }
+
+  function removeQueueMember(timeframeId: string, memberIndex: number) {
+    setTimeframes((current) =>
+      current.map((timeframe) =>
+        timeframe.id === timeframeId && timeframe.linkedQueue
+          ? {
+              ...timeframe,
+              linkedQueue: {
+                ...timeframe.linkedQueue,
+                members: timeframe.linkedQueue.members
+                  .filter((_, index) => index !== memberIndex)
+                  .map((member, index) => ({
+                    ...member,
+                    sortOrder: index + 1
+                  }))
+              }
+            }
+          : timeframe
+      )
+    );
+  }
+
+  function moveQueueMember(timeframeId: string, memberIndex: number, direction: -1 | 1) {
+    setTimeframes((current) =>
+      current.map((timeframe) => {
+        if (timeframe.id !== timeframeId || !timeframe.linkedQueue) {
+          return timeframe;
+        }
+
+        const nextIndex = memberIndex + direction;
+
+        if (nextIndex < 0 || nextIndex >= timeframe.linkedQueue.members.length) {
+          return timeframe;
+        }
+
+        const members = [...timeframe.linkedQueue.members];
+        [members[memberIndex], members[nextIndex]] = [members[nextIndex], members[memberIndex]];
+
+        return {
+          ...timeframe,
+          linkedQueue: {
+            ...timeframe.linkedQueue,
+            members: members.map((member, index) => ({
+              ...member,
+              sortOrder: index + 1
+            }))
+          }
+        };
+      })
+    );
+  }
+
+  function saveLinkedQueue(timeframeId: string) {
+    const timeframe = timeframes.find((item) => item.id === timeframeId);
+
+    if (!timeframe?.linkedQueue) {
+      return;
+    }
+
+    setMessage(null);
+
+    startTransition(async () => {
+      const response = await fetch(`/api/timeframe-queues/${encodeURIComponent(timeframeId)}`, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          members: timeframe.linkedQueue?.members.map((member, index) => ({
+            id: member.id.startsWith("new-") ? undefined : member.id,
+            displayLabel: member.displayLabel,
+            destinationNumber: member.destinationNumber,
+            sortOrder: index + 1,
+            enabled: member.enabled,
+            requestConfirmationEnabled: member.requestConfirmationEnabled
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setMessage(payload?.error?.formErrors?.[0] ?? "We could not save the linked queue members. Please try again.");
+        return;
+      }
+
+      const payload = await response.json();
+      setTimeframes((current) =>
+        current.map((item) =>
+          item.id === timeframeId
+            ? {
+                ...item,
+                linkedQueue: payload.assignment?.routingQueue
+                    ? {
+                      id: payload.assignment.routingQueue.externalId,
+                      name: payload.assignment.routingQueue.name,
+                      extension: payload.assignment.routingQueue.extension,
+                      members: payload.assignment.routingQueue.members.map((member: {
+                        id: string;
+                        displayLabel: string;
+                        destinationNumber: string;
+                        sortOrder: number;
+                        enabled: boolean;
+                        requestConfirmationEnabled: boolean;
+                      }) => ({
+                        id: member.id,
+                        displayLabel: member.displayLabel,
+                        destinationNumber: member.destinationNumber,
+                        sortOrder: member.sortOrder,
+                        enabled: member.enabled,
+                        requestConfirmationEnabled: member.requestConfirmationEnabled
+                      }))
+                    }
+                  : item.linkedQueue
+              }
+            : item
+        )
+      );
+      setMessage("Linked on-call technician queue updated.");
+    });
   }
 
   function saveLocalSchedule(nextMessage: string) {
@@ -252,7 +454,10 @@ export function ScheduleManager({
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <div className="font-medium">{timeframe.name}</div>
-                  <div className="text-sm text-muted-foreground">Scope: {timeframe.scope}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Scope: {timeframe.scope}
+                    {timeframe.linkedQueue ? ` · Linked Queue: ${timeframe.linkedQueue.name}${timeframe.linkedQueue.extension ? ` (${timeframe.linkedQueue.extension})` : ""}` : ""}
+                  </div>
                 </div>
                 <Button type="button" variant="outline" onClick={() => addTimeframeEntry(timeframe.id)} disabled={isPending}>
                   Add Date
@@ -265,7 +470,7 @@ export function ScheduleManager({
                   </div>
                 ) : null}
                 {timeframe.entries.map((entry, index) => (
-                  <div key={`${timeframe.id}-${index}`} className="grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-[1fr,1fr,auto]">
+                  <div key={`${timeframe.id}-${index}`} className="grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-[1fr,1fr,180px,120px,140px,auto]">
                     <div>
                       <Label>Start</Label>
                       <Input
@@ -286,6 +491,53 @@ export function ScheduleManager({
                         }
                       />
                     </div>
+                    <div>
+                      <Label>Recurs</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={entry.recurrenceType}
+                        onChange={(event) =>
+                          updateTimeframeEntry(timeframe.id, index, {
+                            recurrenceType: event.target.value as "doesNotRecur" | "custom",
+                            recurrenceIntervalCount: event.target.value === "custom" ? entry.recurrenceIntervalCount ?? 1 : undefined,
+                            recurrenceIntervalUnit: event.target.value === "custom" ? entry.recurrenceIntervalUnit ?? "weeks" : undefined
+                          })
+                        }
+                      >
+                        <option value="doesNotRecur">One time</option>
+                        <option value="custom">Repeats</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Every</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={entry.recurrenceType === "custom" ? String(entry.recurrenceIntervalCount ?? 1) : ""}
+                        disabled={entry.recurrenceType !== "custom"}
+                        onChange={(event) =>
+                          updateTimeframeEntry(timeframe.id, index, {
+                            recurrenceIntervalCount: Number(event.target.value || 1)
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Unit</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={entry.recurrenceType === "custom" ? entry.recurrenceIntervalUnit ?? "weeks" : "weeks"}
+                        disabled={entry.recurrenceType !== "custom"}
+                        onChange={(event) =>
+                          updateTimeframeEntry(timeframe.id, index, {
+                            recurrenceIntervalUnit: event.target.value as "weeks" | "months"
+                          })
+                        }
+                      >
+                        <option value="weeks">Weeks</option>
+                        <option value="months">Months</option>
+                      </select>
+                    </div>
                     <div className="flex items-end">
                       <Button
                         type="button"
@@ -299,6 +551,81 @@ export function ScheduleManager({
                   </div>
                 ))}
               </div>
+              {timeframe.linkedQueue ? (
+                <div className="mt-6 space-y-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium">On-Call Technician Queue</div>
+                      <div className="text-sm text-muted-foreground">
+                        This queue is locked to the timeframe. Customers can update numbers and order only.
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={() => addQueueMember(timeframe.id)} disabled={isPending}>
+                        Add Number
+                      </Button>
+                      <Button type="button" onClick={() => saveLinkedQueue(timeframe.id)} disabled={isPending}>
+                        {isPending ? "Saving..." : "Save Queue"}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {timeframe.linkedQueue.members.map((member, index) => (
+                      <div key={member.id} className="grid gap-3 rounded-2xl border border-border bg-background p-4 md:grid-cols-[1fr,1fr,120px,170px,auto]">
+                        <div>
+                          <Label>Label</Label>
+                          <Input
+                            value={member.displayLabel}
+                            onChange={(event) => updateQueueMember(timeframe.id, index, { displayLabel: event.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label>Phone Number</Label>
+                          <Input
+                            value={member.destinationNumber}
+                            onChange={(event) => updateQueueMember(timeframe.id, index, { destinationNumber: event.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Status</Label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={member.enabled}
+                              onChange={(event) => updateQueueMember(timeframe.id, index, { enabled: event.target.checked })}
+                            />
+                            Enabled
+                          </label>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Request Confirmation</Label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={member.requestConfirmationEnabled}
+                              onChange={(event) =>
+                                updateQueueMember(timeframe.id, index, { requestConfirmationEnabled: event.target.checked })
+                              }
+                            />
+                            Required
+                          </label>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <Button type="button" variant="outline" onClick={() => moveQueueMember(timeframe.id, index, -1)}>
+                            Up
+                          </Button>
+                          <Button type="button" variant="outline" onClick={() => moveQueueMember(timeframe.id, index, 1)}>
+                            Down
+                          </Button>
+                          <Button type="button" variant="outline" onClick={() => removeQueueMember(timeframe.id, index)}>
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))}
         </CardContent>

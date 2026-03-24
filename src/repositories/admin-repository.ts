@@ -112,6 +112,188 @@ export const adminRepository = {
     });
   },
 
+  async importRoutingSnapshot(data: {
+    domainId: string;
+    timeframes: Array<{
+      externalId: string;
+      name: string;
+      scope: "DOMAIN" | "USER";
+      snapshotJson?: Prisma.InputJsonValue;
+    }>;
+    queues: Array<{
+      externalId: string;
+      name: string;
+      extension?: string | null;
+      linearRoutingEnabled: boolean;
+      snapshotJson?: Prisma.InputJsonValue;
+      members: Array<{
+        externalId?: string | null;
+        displayLabel: string;
+        destinationNumber: string;
+        enabled: boolean;
+        requestConfirmationEnabled: boolean;
+        sortOrder: number;
+      }>;
+    }>;
+    assignments: Array<{
+      timeframeExternalId: string;
+      queueExternalId: string;
+      locked?: boolean;
+    }>;
+  }) {
+    return prisma.$transaction(async (tx) => {
+      const existingTimeframes = await tx.routingTimeframe.findMany({
+        where: { domainId: data.domainId },
+        include: {
+          assignment: {
+            include: {
+              routingQueue: true
+            }
+          }
+        }
+      });
+
+      const queueIdByExternalId = new Map<string, string>();
+      const timeframeIdByExternalId = new Map<string, string>();
+
+      for (const queue of data.queues) {
+        const upsertedQueue = await tx.routingQueue.upsert({
+          where: {
+            domainId_externalId: {
+              domainId: data.domainId,
+              externalId: queue.externalId
+            }
+          },
+          update: {
+            name: queue.name,
+            extension: queue.extension ?? null,
+            linearRoutingEnabled: queue.linearRoutingEnabled,
+            snapshotJson: queue.snapshotJson,
+            lastSyncedAt: new Date()
+          },
+          create: {
+            domainId: data.domainId,
+            externalId: queue.externalId,
+            name: queue.name,
+            extension: queue.extension ?? null,
+            linearRoutingEnabled: queue.linearRoutingEnabled,
+            snapshotJson: queue.snapshotJson,
+            lastSyncedAt: new Date()
+          }
+        });
+
+        queueIdByExternalId.set(queue.externalId, upsertedQueue.id);
+
+        await tx.routingQueueMember.deleteMany({
+          where: {
+            routingQueueId: upsertedQueue.id
+          }
+        });
+
+        if (queue.members.length > 0) {
+          await tx.routingQueueMember.createMany({
+            data: queue.members.map((member) => ({
+              routingQueueId: upsertedQueue.id,
+              externalId: member.externalId ?? member.destinationNumber,
+              displayLabel: member.displayLabel,
+              destinationNumber: member.destinationNumber,
+              memberType: "EXTERNAL_NUMBER",
+              sortOrder: member.sortOrder,
+              enabled: member.enabled,
+              requestConfirmationEnabled: member.requestConfirmationEnabled
+            }))
+          });
+        }
+      }
+
+      for (const timeframe of data.timeframes) {
+        const upsertedTimeframe = await tx.routingTimeframe.upsert({
+          where: {
+            domainId_externalId: {
+              domainId: data.domainId,
+              externalId: timeframe.externalId
+            }
+          },
+          update: {
+            name: timeframe.name,
+            scope: timeframe.scope,
+            type: "SPECIFIC_DATES",
+            snapshotJson: timeframe.snapshotJson,
+            lastSyncedAt: new Date()
+          },
+          create: {
+            domainId: data.domainId,
+            externalId: timeframe.externalId,
+            name: timeframe.name,
+            scope: timeframe.scope,
+            type: "SPECIFIC_DATES",
+            snapshotJson: timeframe.snapshotJson,
+            lastSyncedAt: new Date()
+          }
+        });
+
+        timeframeIdByExternalId.set(timeframe.externalId, upsertedTimeframe.id);
+      }
+
+      for (const assignment of data.assignments) {
+        const routingTimeframeId = timeframeIdByExternalId.get(assignment.timeframeExternalId);
+        const routingQueueId = queueIdByExternalId.get(assignment.queueExternalId);
+
+        if (!routingTimeframeId || !routingQueueId) {
+          continue;
+        }
+
+        await tx.timeframeQueueAssignment.upsert({
+          where: {
+            routingTimeframeId
+          },
+          update: {
+            domainId: data.domainId,
+            routingQueueId,
+            locked: assignment.locked ?? true
+          },
+          create: {
+            domainId: data.domainId,
+            routingTimeframeId,
+            routingQueueId,
+            locked: assignment.locked ?? true
+          }
+        });
+      }
+
+      return tx.domain.findUniqueOrThrow({
+        where: { id: data.domainId },
+        include: {
+          routingTimeframes: {
+            orderBy: { name: "asc" },
+            include: {
+              assignment: {
+                include: {
+                  routingQueue: {
+                    include: {
+                      members: {
+                        orderBy: { sortOrder: "asc" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          routingQueues: {
+            orderBy: { name: "asc" },
+            include: {
+              members: {
+                orderBy: { sortOrder: "asc" }
+              }
+            }
+          },
+          backendMappings: true
+        }
+      });
+    });
+  },
+
   listSyncJobs() {
     return prisma.syncJob.findMany({
       include: { domain: true },

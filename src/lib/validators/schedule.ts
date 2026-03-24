@@ -66,10 +66,25 @@ export const scheduleMutationSchema = z.object({
 export const timeframeDateEntrySchema = z
   .object({
     startsAt: z.string().datetime(),
-    endsAt: z.string().datetime()
+    endsAt: z.string().datetime(),
+    recurrenceType: z.enum(["doesNotRecur", "custom"]),
+    recurrenceIntervalCount: z.number().int().positive().optional(),
+    recurrenceIntervalUnit: z.enum(["weeks", "months"]).optional()
   })
-  .refine((value) => value.startsAt < value.endsAt, {
-    message: "Date entry end must be later than start"
+  .superRefine((value, context) => {
+    if (value.startsAt >= value.endsAt) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Date entry end must be later than start"
+      });
+    }
+
+    if (value.recurrenceType === "custom" && (!value.recurrenceIntervalCount || !value.recurrenceIntervalUnit)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recurring date entries require an interval count and unit"
+      });
+    }
   });
 
 export const backendTimeframeSchema = z.object({

@@ -38,7 +38,34 @@ export default async function SchedulePage() {
           endsAt: override.endsAt.toISOString(),
           targetNumber: override.targetNumber
         }))}
-        routingTimeframes={schedule.routingTimeframes}
+        routingTimeframes={schedule.routingTimeframes.map((timeframe) => ({
+          id: timeframe.id,
+          name: timeframe.name,
+          scope: timeframe.scope === "user" ? "user" : "domain",
+          type: "specific-dates" as const,
+          entries: timeframe.entries.map((entry) => ({
+            startsAt: entry.startsAt,
+            endsAt: entry.endsAt,
+            recurrenceType: entry.recurrenceType ?? "doesNotRecur",
+            recurrenceIntervalCount: entry.recurrenceIntervalCount,
+            recurrenceIntervalUnit: entry.recurrenceIntervalUnit
+          })),
+          linkedQueue: timeframe.linkedQueue
+            ? {
+                id: timeframe.linkedQueue.id,
+                name: timeframe.linkedQueue.name,
+                extension: timeframe.linkedQueue.extension,
+                members: timeframe.linkedQueue.members.map((member) => ({
+                  id: member.id,
+                  displayLabel: member.displayLabel,
+                  destinationNumber: member.destinationNumber,
+                  sortOrder: member.sortOrder,
+                  enabled: member.enabled,
+                  requestConfirmationEnabled: member.requestConfirmationEnabled
+                }))
+              }
+            : null
+        }))}
         routingTimeframesError={schedule.routingTimeframesError}
       />
       <OverrideForm overrides={schedule.overrides} />

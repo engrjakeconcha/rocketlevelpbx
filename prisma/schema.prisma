@@ -64,6 +64,15 @@ enum NotificationChannel {
   SMS
 }
 
+enum RoutingTimeframeScope {
+  DOMAIN
+  USER
+}
+
+enum RoutingTimeframeType {
+  SPECIFIC_DATES
+}
+
 model User {
   id                     String                  @id @default(cuid())
   email                  String                  @unique
@@ -94,6 +103,9 @@ model Domain {
   memberships            Membership[]
   scheduleTemplates      ScheduleTemplate[]
   coverageGroups         CoverageGroup[]
+  routingTimeframes      RoutingTimeframe[]
+  routingQueues          RoutingQueue[]
+  timeframeQueueAssignments TimeframeQueueAssignment[]
   notificationScenarios  NotificationScenario[]
   allowedNumberPool      AllowedNumberPool[]
   backendMappings        BackendMapping[]
@@ -217,6 +229,69 @@ model BackendMapping {
   externalRef            String
   metadataJson           Json?
   domain                 Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model RoutingTimeframe {
+  id                     String                  @id @default(cuid())
+  domainId               String
+  externalId             String
+  name                   String
+  scope                  RoutingTimeframeScope
+  type                   RoutingTimeframeType    @default(SPECIFIC_DATES)
+  snapshotJson           Json?
+  lastSyncedAt           DateTime?
+  domain                 Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  assignment             TimeframeQueueAssignment?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@unique([domainId, externalId])
+}
+
+model RoutingQueue {
+  id                     String                  @id @default(cuid())
+  domainId               String
+  externalId             String
+  name                   String
+  extension              String?
+  linearRoutingEnabled   Boolean                 @default(true)
+  snapshotJson           Json?
+  lastSyncedAt           DateTime?
+  domain                 Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  members                RoutingQueueMember[]
+  assignments            TimeframeQueueAssignment[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@unique([domainId, externalId])
+}
+
+model RoutingQueueMember {
+  id                     String                  @id @default(cuid())
+  routingQueueId         String
+  externalId             String?
+  displayLabel           String
+  destinationNumber      String
+  memberType             CoverageMemberType      @default(EXTERNAL_NUMBER)
+  sortOrder              Int
+  enabled                Boolean                 @default(true)
+  requestConfirmationEnabled Boolean             @default(true)
+  routingQueue           RoutingQueue            @relation(fields: [routingQueueId], references: [id], onDelete: Cascade)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model TimeframeQueueAssignment {
+  id                     String                  @id @default(cuid())
+  domainId               String
+  routingTimeframeId     String                  @unique
+  routingQueueId         String
+  locked                 Boolean                 @default(true)
+  domain                 Domain                  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  routingTimeframe       RoutingTimeframe        @relation(fields: [routingTimeframeId], references: [id], onDelete: Cascade)
+  routingQueue           RoutingQueue            @relation(fields: [routingQueueId], references: [id], onDelete: Cascade)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }

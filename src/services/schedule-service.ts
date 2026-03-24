@@ -11,6 +11,7 @@ import type { AccessContext } from "@/types/access";
 import { SyncService } from "@/services/sync-service";
 import { RoutingEngineClient, type ManagedScheduleTimeframe } from "@/services/routing-engine-client";
 import { toJsonValue } from "@/lib/utils/json";
+import { timeframeQueueRepository } from "@/repositories/timeframe-queue-repository";
 
 export class ScheduleService {
   constructor(
@@ -36,6 +37,38 @@ export class ScheduleService {
 
     let routingTimeframes: ManagedScheduleTimeframe[] = [];
     let routingTimeframesError: string | null = null;
+    const storedAssignments = await timeframeQueueRepository.getDomainAssignments(domainId);
+
+    if (storedAssignments.length > 0) {
+      return {
+        ...schedule,
+        routingTimeframes: storedAssignments.map((timeframe) => ({
+          id: timeframe.externalId,
+          name: timeframe.name,
+          scope: timeframe.scope === "DOMAIN" ? "domain" : "user",
+          type: "specific-dates" as const,
+          entries: Array.isArray((timeframe.snapshotJson as { entries?: unknown[] } | null)?.entries)
+            ? (((timeframe.snapshotJson as { entries?: ManagedScheduleTimeframe["entries"] } | null)?.entries ?? []) as ManagedScheduleTimeframe["entries"])
+            : [],
+          linkedQueue: timeframe.assignment
+            ? {
+                id: timeframe.assignment.routingQueue.externalId,
+                name: timeframe.assignment.routingQueue.name,
+                extension: timeframe.assignment.routingQueue.extension,
+                members: timeframe.assignment.routingQueue.members.map((member) => ({
+                  id: member.id,
+                  displayLabel: member.displayLabel,
+                  destinationNumber: member.destinationNumber,
+                  sortOrder: member.sortOrder,
+                  enabled: member.enabled,
+                  requestConfirmationEnabled: member.requestConfirmationEnabled
+                }))
+              }
+            : null
+        })),
+        routingTimeframesError
+      };
+    }
 
     if (mapping?.metadataJson) {
       try {
@@ -47,7 +80,10 @@ export class ScheduleService {
 
     return {
       ...schedule,
-      routingTimeframes,
+      routingTimeframes: routingTimeframes.map((timeframe) => ({
+        ...timeframe,
+        linkedQueue: null
+      })),
       routingTimeframesError
     };
   }
@@ -75,6 +111,7 @@ export class ScheduleService {
       }
 
       await this.routingClient.updateSpecificDateTimeframes(mapping.metadataJson, validated.timeframes);
+      await timeframeQueueRepository.updateTimeframes(domainId, validated);
       await prisma.scheduleTemplate.update({
         where: { id: template.id },
         data: {

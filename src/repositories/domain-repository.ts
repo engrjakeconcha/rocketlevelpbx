@@ -11,6 +11,9 @@ export const domainRepository = {
     return prisma.domain.findUnique({
       where: { id: domainId },
       include: {
+        backendMappings: {
+          orderBy: { mappingType: "asc" }
+        },
         scheduleTemplates: {
           include: {
             weeklyRules: true,
@@ -19,6 +22,24 @@ export const domainRepository = {
           }
         },
         coverageGroups: {
+          include: {
+            members: {
+              orderBy: { sortOrder: "asc" }
+            }
+          }
+        },
+        routingTimeframes: {
+          orderBy: { name: "asc" },
+          include: {
+            assignment: {
+              include: {
+                routingQueue: true
+              }
+            }
+          }
+        },
+        routingQueues: {
+          orderBy: { name: "asc" },
           include: {
             members: {
               orderBy: { sortOrder: "asc" }

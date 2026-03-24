@@ -8,7 +8,9 @@ import {
   CoverageMemberStatus,
   MappingType,
   AuditActionType,
-  NotificationChannel
+  NotificationChannel,
+  RoutingTimeframeScope,
+  RoutingTimeframeType
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -279,6 +281,243 @@ async function main() {
         }
       }
     });
+
+    const routingQueues = await Promise.all([
+      prisma.routingQueue.upsert({
+        where: {
+          domainId_externalId: {
+            domainId: domain.id,
+            externalId: domain.slug === "servpro-team-drake" ? "401" : `${domain.slug}-queue-1`
+          }
+        },
+        update: {
+          name: "Primary Tech Queue",
+          extension: domain.slug === "servpro-team-drake" ? "401" : "401",
+          linearRoutingEnabled: true,
+          lastSyncedAt: new Date()
+        },
+        create: {
+          domainId: domain.id,
+          externalId: domain.slug === "servpro-team-drake" ? "401" : `${domain.slug}-queue-1`,
+          name: "Primary Tech Queue",
+          extension: "401",
+          linearRoutingEnabled: true,
+          lastSyncedAt: new Date()
+        }
+      }),
+      prisma.routingQueue.upsert({
+        where: {
+          domainId_externalId: {
+            domainId: domain.id,
+            externalId: domain.slug === "servpro-team-drake" ? "402" : `${domain.slug}-queue-2`
+          }
+        },
+        update: {
+          name: "Secondary Tech Queue",
+          extension: domain.slug === "servpro-team-drake" ? "402" : "402",
+          linearRoutingEnabled: true,
+          lastSyncedAt: new Date()
+        },
+        create: {
+          domainId: domain.id,
+          externalId: domain.slug === "servpro-team-drake" ? "402" : `${domain.slug}-queue-2`,
+          name: "Secondary Tech Queue",
+          extension: "402",
+          linearRoutingEnabled: true,
+          lastSyncedAt: new Date()
+        }
+      })
+    ]);
+
+    for (const queue of routingQueues) {
+      await prisma.routingQueueMember.deleteMany({
+        where: { routingQueueId: queue.id }
+      });
+    }
+
+    await prisma.routingQueueMember.createMany({
+      data: [
+        {
+          routingQueueId: routingQueues[0].id,
+          externalId: "+15555550111",
+          displayLabel: "Primary Tech",
+          destinationNumber: "+15555550111",
+          memberType: CoverageMemberType.EXTERNAL_NUMBER,
+          sortOrder: 1,
+          enabled: true,
+          requestConfirmationEnabled: true
+        },
+        {
+          routingQueueId: routingQueues[0].id,
+          externalId: "+15555550112",
+          displayLabel: "Backup 1",
+          destinationNumber: "+15555550112",
+          memberType: CoverageMemberType.EXTERNAL_NUMBER,
+          sortOrder: 2,
+          enabled: true,
+          requestConfirmationEnabled: true
+        },
+        {
+          routingQueueId: routingQueues[0].id,
+          externalId: "+15555550113",
+          displayLabel: "Backup 2",
+          destinationNumber: "+15555550113",
+          memberType: CoverageMemberType.EXTERNAL_NUMBER,
+          sortOrder: 3,
+          enabled: true,
+          requestConfirmationEnabled: true
+        },
+        {
+          routingQueueId: routingQueues[1].id,
+          externalId: "+15555550121",
+          displayLabel: "Primary Tech",
+          destinationNumber: "+15555550121",
+          memberType: CoverageMemberType.EXTERNAL_NUMBER,
+          sortOrder: 1,
+          enabled: true,
+          requestConfirmationEnabled: true
+        },
+        {
+          routingQueueId: routingQueues[1].id,
+          externalId: "+15555550122",
+          displayLabel: "Backup 1",
+          destinationNumber: "+15555550122",
+          memberType: CoverageMemberType.EXTERNAL_NUMBER,
+          sortOrder: 2,
+          enabled: true,
+          requestConfirmationEnabled: true
+        }
+      ]
+    });
+
+    const timeframeSeeds =
+      domain.slug === "servpro-team-drake"
+        ? [
+            {
+              externalId: "4e3c38783257f275cc7e68542ad30bc8",
+              name: "813 683 0004",
+              queueIndex: 0,
+              entries: [
+                {
+                  startsAt: "2025-12-29T07:00:00.000Z",
+                  endsAt: "2026-01-05T07:00:00.000Z",
+                  recurrenceType: "custom",
+                  recurrenceIntervalCount: 2,
+                  recurrenceIntervalUnit: "weeks"
+                }
+              ]
+            },
+            {
+              externalId: "decd0871ce10fef6da2b6a94f0ad4f73",
+              name: "813 255 4214",
+              queueIndex: 1,
+              entries: [
+                {
+                  startsAt: "2025-12-22T07:00:00.000Z",
+                  endsAt: "2025-12-29T07:00:00.000Z",
+                  recurrenceType: "custom",
+                  recurrenceIntervalCount: 2,
+                  recurrenceIntervalUnit: "weeks"
+                }
+              ]
+            },
+            {
+              externalId: "f30c190a83e3fcf6c91d9ec69a5ab18f",
+              name: "813 683 0004 v2",
+              queueIndex: 0,
+              entries: [
+                {
+                  startsAt: "2025-12-19T00:00:00.000Z",
+                  endsAt: "2025-12-22T07:00:00.000Z",
+                  recurrenceType: "doesNotRecur"
+                }
+              ]
+            }
+          ]
+        : [
+            {
+              externalId: `${domain.slug}-tf-1`,
+              name: `${domain.description} Weekly Rotation`,
+              queueIndex: 0,
+              entries: [
+                {
+                  startsAt: "2026-03-23T13:00:00.000Z",
+                  endsAt: "2026-03-30T13:00:00.000Z",
+                  recurrenceType: "custom",
+                  recurrenceIntervalCount: 1,
+                  recurrenceIntervalUnit: "weeks"
+                }
+              ]
+            },
+            {
+              externalId: `${domain.slug}-tf-2`,
+              name: `${domain.description} Monthly Rotation`,
+              queueIndex: 1,
+              entries: [
+                {
+                  startsAt: "2026-04-01T13:00:00.000Z",
+                  endsAt: "2026-04-08T13:00:00.000Z",
+                  recurrenceType: "custom",
+                  recurrenceIntervalCount: 1,
+                  recurrenceIntervalUnit: "months"
+                }
+              ]
+            }
+          ];
+
+    const routingTimeframes = [];
+
+    for (const timeframeSeed of timeframeSeeds) {
+      const routingTimeframe = await prisma.routingTimeframe.upsert({
+        where: {
+          domainId_externalId: {
+            domainId: domain.id,
+            externalId: timeframeSeed.externalId
+          }
+        },
+        update: {
+          name: timeframeSeed.name,
+          scope: RoutingTimeframeScope.DOMAIN,
+          type: RoutingTimeframeType.SPECIFIC_DATES,
+          snapshotJson: {
+            entries: timeframeSeed.entries
+          },
+          lastSyncedAt: new Date()
+        },
+        create: {
+          domainId: domain.id,
+          externalId: timeframeSeed.externalId,
+          name: timeframeSeed.name,
+          scope: RoutingTimeframeScope.DOMAIN,
+          type: RoutingTimeframeType.SPECIFIC_DATES,
+          snapshotJson: {
+            entries: timeframeSeed.entries
+          },
+          lastSyncedAt: new Date()
+        }
+      });
+
+      routingTimeframes.push({ record: routingTimeframe, queueIndex: timeframeSeed.queueIndex });
+    }
+
+    for (const timeframe of routingTimeframes) {
+      await prisma.timeframeQueueAssignment.upsert({
+        where: {
+          routingTimeframeId: timeframe.record.id
+        },
+        update: {
+          domainId: domain.id,
+          routingQueueId: routingQueues[timeframe.queueIndex].id,
+          locked: true
+        },
+        create: {
+          domainId: domain.id,
+          routingTimeframeId: timeframe.record.id,
+          routingQueueId: routingQueues[timeframe.queueIndex].id,
+          locked: true
+        }
+      });
+    }
 
     await prisma.allowedNumberPool.createMany({
       data: [
