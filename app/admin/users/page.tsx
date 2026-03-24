@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateUserForm } from "@/components/admin/create-user-form";
+import { DeleteUserButton } from "@/components/admin/delete-user-button";
 import { requireAdminAccess } from "@/lib/tenant/access";
 import { adminRepository } from "@/repositories/admin-repository";
 
@@ -33,6 +34,9 @@ export default async function UsersPage() {
             </div>
             <div className="text-sm text-muted-foreground">
               Notification scenario: {user.notificationScenario?.name ?? "Not assigned"}
+            </div>
+            <div className="mt-4">
+              <DeleteUserButton userId={user.id} userName={user.name} />
             </div>
           </div>
         ))}

@@ -21,11 +21,6 @@ async function main() {
 
   const adminUsers = [
     {
-      email: "admin@rocketlevel.ai",
-      name: "RocketLevel Admin",
-      passwordHash: defaultAdminPasswordHash
-    },
-    {
       email: "jerahmeel.concha@heybadara.com",
       name: "Jake Concha",
       passwordHash: jakeAdminPasswordHash
@@ -50,7 +45,7 @@ async function main() {
       }
     });
 
-    if (adminUser.email === "admin@rocketlevel.ai") {
+    if (adminUser.email === "jerahmeel.concha@heybadara.com") {
       admin = createdAdmin;
     }
   }
@@ -60,18 +55,6 @@ async function main() {
   }
 
   const domains = [
-    {
-      slug: "northshore-dental",
-      name: "Northshore Dental",
-      description: "Northshore Dental",
-      timezone: "America/Chicago"
-    },
-    {
-      slug: "summit-family-law",
-      name: "Summit Family Law",
-      description: "Summit Family Law",
-      timezone: "America/New_York"
-    },
     {
       slug: "servpro-team-drake",
       name: "Servpro Team Brandon",

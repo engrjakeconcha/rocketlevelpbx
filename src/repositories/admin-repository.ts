@@ -93,6 +93,44 @@ export const adminRepository = {
     });
   },
 
+  async deleteUser(args: { userId: string; actingUserId: string }) {
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: args.userId },
+        include: {
+          memberships: true
+        }
+      });
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if (user.id === args.actingUserId) {
+        throw new Error("Admins cannot delete their own account");
+      }
+
+      if (user.role === "ADMIN") {
+        const adminCount = await tx.user.count({
+          where: {
+            role: "ADMIN",
+            isActive: true
+          }
+        });
+
+        if (adminCount <= 1) {
+          throw new Error("The last remaining admin cannot be deleted");
+        }
+      }
+
+      await tx.user.delete({
+        where: { id: user.id }
+      });
+
+      return user;
+    });
+  },
+
   listBackendMappings() {
     return prisma.backendMapping.findMany({
       include: { domain: true },

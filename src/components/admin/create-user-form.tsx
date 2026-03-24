@@ -94,6 +94,9 @@ export function CreateUserForm({
 
   return (
     <div className="space-y-4 rounded-2xl border border-border p-4">
+      <div className="text-sm text-muted-foreground">
+        Multiple customer users can share the same domain and notification scenario.
+      </div>
       {message ? <div className="rounded-xl bg-muted px-4 py-3 text-sm text-foreground">{message}</div> : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
