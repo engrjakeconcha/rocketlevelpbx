@@ -13,6 +13,57 @@ export const adminRepository = {
     });
   },
 
+  listDomains() {
+    return prisma.domain.findMany({
+      where: { isActive: true },
+      orderBy: { description: "asc" }
+    });
+  },
+
+  createUser(data: {
+    email: string;
+    name: string;
+    passwordHash: string;
+    role: "ADMIN" | "CUSTOMER";
+    domainId?: string;
+  }) {
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          name: data.name,
+          passwordHash: data.passwordHash,
+          role: data.role,
+          isActive: true
+        },
+        include: {
+          memberships: {
+            include: { domain: true }
+          }
+        }
+      });
+
+      if (data.role === "CUSTOMER" && data.domainId) {
+        await tx.membership.create({
+          data: {
+            userId: user.id,
+            domainId: data.domainId,
+            isPrimary: true
+          }
+        });
+      }
+
+      return tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        include: {
+          memberships: {
+            include: { domain: true }
+          }
+        }
+      });
+    });
+  },
+
   listBackendMappings() {
     return prisma.backendMapping.findMany({
       include: { domain: true },
