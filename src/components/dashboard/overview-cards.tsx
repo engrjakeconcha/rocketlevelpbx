@@ -19,7 +19,7 @@ export function OverviewCards({
   const items = [
     { label: "Domain", value: domainName },
     { label: "Timezone", value: timezone },
-    { label: "Coverage Members", value: `${activeCoverageMembers}` },
+    { label: "On-Call Technicians", value: `${activeCoverageMembers}` },
     { label: "Last Synced", value: lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "Pending" }
   ];
 

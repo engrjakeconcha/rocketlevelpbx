@@ -12,9 +12,9 @@ export default async function CoveragePage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>No coverage group configured</CardTitle>
+          <CardTitle>No on-call technician queue configured</CardTitle>
         </CardHeader>
-        <CardContent>Onboarding must create the primary coverage group before customers can manage it.</CardContent>
+        <CardContent>Onboarding must create the on-call technician queue before customers can manage it.</CardContent>
       </Card>
     );
   }
@@ -24,7 +24,7 @@ export default async function CoveragePage() {
       <CoverageMemberList members={coverage.members} />
       <Card>
         <CardHeader>
-          <CardTitle>Reorder Coverage</CardTitle>
+          <CardTitle>Reorder On-Call Technician Queue</CardTitle>
         </CardHeader>
         <CardContent>
           <DragAndDropCoverageOrder coverageGroupId={coverage.id} members={coverage.members} />

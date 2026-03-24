@@ -35,10 +35,10 @@ export default async function OverviewPage() {
           description={schedule?.lastSyncMessage ?? "Changes sync through the Routing Engine API after validation."}
         />
         <SyncStatusCard
-          title="Coverage Sync"
+          title="On-Call Technician Queue Sync"
           status={coverage?.syncStatus ?? "PENDING"}
           lastSyncedAt={coverage?.lastSyncedAt ?? null}
-          description="Coverage order and member updates remain constrained to the approved configuration."
+          description="On-call technician queue order and member updates remain constrained to the approved configuration."
         />
       </div>
     </div>

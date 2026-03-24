@@ -16,8 +16,8 @@ export default function LoginPage() {
             <h1 className="text-4xl font-semibold text-white">RocketLevel AI Routing Console</h1>
             <p className="text-lg text-white/75">Smarter Routing. Less Complexity.</p>
             <p className="text-sm leading-7 text-white/70">
-              A controlled self-service workspace for schedule changes, coverage updates, and short-term routing
-              adjustments. Underlying architecture stays protected.
+              A controlled self-service workspace for schedule changes, on-call technician queue updates, and
+              short-term routing adjustments. Underlying architecture stays protected.
             </p>
           </div>
         </div>

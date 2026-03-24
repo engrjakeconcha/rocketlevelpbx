@@ -15,7 +15,7 @@ export function CoverageMemberList({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Coverage Members</CardTitle>
+        <CardTitle>On-Call Technician Queue</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {members.map((member) => (

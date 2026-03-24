@@ -60,13 +60,13 @@ export function DragAndDropCoverageOrder({
       });
 
       if (!response.ok) {
-        setMessage("We could not save the coverage order. Please try again.");
+        setMessage("We could not save the on-call technician queue. Please try again.");
         return;
       }
 
       const payload = await response.json();
       setItems(payload.members);
-      setMessage("Coverage order updated.");
+      setMessage("On-call technician queue updated.");
     });
   }
 
@@ -89,7 +89,7 @@ export function DragAndDropCoverageOrder({
         </div>
       ))}
       <Button type="button" onClick={save} disabled={isPending}>
-        {isPending ? "Saving..." : "Save Coverage Order"}
+        {isPending ? "Saving..." : "Save On-Call Technician Queue"}
       </Button>
     </div>
   );
