@@ -257,6 +257,24 @@ function encodePath(value: string) {
   return encodeURIComponent(value);
 }
 
+function normalizeRoutingTimezone(value?: string) {
+  if (!value) {
+    return "America/New_York";
+  }
+
+  const aliases: Record<string, string> = {
+    "US/Eastern": "America/New_York",
+    "US/Central": "America/Chicago",
+    "US/Mountain": "America/Denver",
+    "US/Pacific": "America/Los_Angeles",
+    "US/Arizona": "America/Phoenix",
+    "US/Alaska": "America/Anchorage",
+    "US/Hawaii": "Pacific/Honolulu"
+  };
+
+  return aliases[value] ?? value;
+}
+
 function normalizeDomainLookup(metadata?: unknown) {
   const mapping = timeframeLookupSchema.parse(metadata ?? {});
   return {
@@ -670,7 +688,7 @@ export class RoutingEngineClient {
       .map((domain) => ({
         backendDomain: domain.domain as string,
         description: domain.description ?? (domain.domain as string),
-        timezone: domain["time-zone"]?.replace("US/", "America/") ?? "America/New_York",
+        timezone: normalizeRoutingTimezone(domain["time-zone"]),
         policy: {
           maxUsers: domain["limits-max-users"] ?? 0,
           maxCallQueues: domain["limits-max-call-queues"] ?? 0

@@ -3,12 +3,25 @@ import { domainRepository } from "@/repositories/domain-repository";
 import { scheduleRepository } from "@/repositories/schedule-repository";
 import { coverageRepository } from "@/repositories/coverage-repository";
 
+function resolveTimezone(timezone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone
+    });
+
+    return timezone;
+  } catch {
+    return "America/New_York";
+  }
+}
+
 function inferOpenStatus(
   timezone: string,
   weeklyRules: Array<{ dayOfWeek: number; isOpen: boolean; startTime: string | null; endTime: string | null }>,
   overrides: Array<{ startsAt: Date; endsAt: Date; enabled: boolean; mode: string }>
 ) {
   const now = new Date();
+  const safeTimezone = resolveTimezone(timezone);
   const activeOverride = overrides.find(
     (entry) => entry.enabled && isWithinInterval(now, { start: entry.startsAt, end: entry.endsAt })
   );
@@ -22,7 +35,7 @@ function inferOpenStatus(
   }
 
   const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: safeTimezone,
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",
