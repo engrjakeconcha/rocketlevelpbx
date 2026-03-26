@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils/cn";
 const customerItems = [
   { href: "/overview", label: "Overview" },
   { href: "/schedule", label: "Schedule" },
-  { href: "/notifications", label: "Notification Contacts" },
   { href: "/change-log", label: "Change Log" },
   { href: "/account", label: "Account" }
 ];

@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { requireAdminAccess } from "@/lib/tenant/access";
 import { adminUserSchema } from "@/lib/validators/admin-user";
 import { hashPassword } from "@/lib/auth/password";
+import { getRequestId } from "@/lib/utils/request";
 import { adminRepository } from "@/repositories/admin-repository";
+import { AdminRoutingImportService } from "@/services/admin-routing-import-service";
 
 export async function POST(request: Request) {
-  await requireAdminAccess();
+  const access = await requireAdminAccess();
   const payload = await request.json();
   const parsed = adminUserSchema.safeParse(payload);
 
@@ -23,7 +25,34 @@ export async function POST(request: Request) {
     notificationScenarioId: parsed.data.role === "CUSTOMER" ? parsed.data.notificationScenarioId ?? undefined : undefined
   });
 
-  return NextResponse.json(user, { status: 201 });
+  let syncResult: {
+    backendDomain: string;
+    timeframeCount: number;
+    queueCount: number;
+    assignmentCount: number;
+  } | null = null;
+  let syncWarning: string | null = null;
+
+  if (parsed.data.role === "CUSTOMER" && parsed.data.domainId) {
+    try {
+      syncResult = await new AdminRoutingImportService().importDomainSnapshot(
+        access,
+        parsed.data.domainId,
+        await getRequestId()
+      );
+    } catch (error) {
+      syncWarning = error instanceof Error ? error.message : "The user was created, but the domain sync did not complete.";
+    }
+  }
+
+  return NextResponse.json(
+    {
+      ...user,
+      syncResult,
+      syncWarning
+    },
+    { status: 201 }
+  );
 }
 
 export async function DELETE(request: Request) {

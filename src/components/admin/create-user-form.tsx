@@ -27,6 +27,13 @@ type UserRecord = {
   notificationScenario: {
     name: string;
   } | null;
+  syncResult?: {
+    backendDomain: string;
+    timeframeCount: number;
+    queueCount: number;
+    assignmentCount: number;
+  } | null;
+  syncWarning?: string | null;
 };
 
 export function CreateUserForm({
@@ -87,7 +94,13 @@ export function CreateUserForm({
       setRole("CUSTOMER");
       setDomainId(domains[0]?.id ?? "");
       setNotificationScenarioId(domains[0]?.notificationScenarios[0]?.id ?? "");
-      setMessage("User created.");
+      setMessage(
+        createdUser.syncWarning
+          ? `User created. Domain sync needs attention: ${createdUser.syncWarning}`
+          : createdUser.syncResult
+            ? `User created. Synced ${createdUser.syncResult.timeframeCount} timeframes and ${createdUser.syncResult.queueCount} queues for ${selectedDomain?.description ?? "the selected domain"}.`
+            : "User created."
+      );
       window.location.reload();
     });
   }
