@@ -20,7 +20,11 @@ export const envSchema = z.object({
   AUTH_SECRET: z.string().min(1),
   APP_URL: z.string().url(),
   ROUTING_API_BASE_URL: z.string().url(),
-  ROUTING_API_TOKEN: z.string().min(1),
+  ROUTING_API_TOKEN: z.string().optional().or(z.literal("")),
+  ROUTING_API_CLIENT_ID: z.string().optional().or(z.literal("")),
+  ROUTING_API_CLIENT_SECRET: z.string().optional().or(z.literal("")),
+  ROUTING_API_USERNAME: z.string().optional().or(z.literal("")),
+  ROUTING_API_PASSWORD: z.string().optional().or(z.literal("")),
   MAKE_API_BASE_URL: z.string().url().optional().or(z.literal("")),
   MAKE_API_TOKEN: z.string().optional().or(z.literal("")),
   MAKE_API_TEAM_ID: z.string().optional().or(z.literal("")),
@@ -31,6 +35,21 @@ export const envSchema = z.object({
   SMTP_PASS: z.string().min(1),
   SMTP_FROM: z.string().min(1),
   REDIS_URL: z.string().url().optional().or(z.literal(""))
+}).superRefine((value, ctx) => {
+  const hasStaticToken = Boolean(value.ROUTING_API_TOKEN);
+  const hasCredentialSet =
+    Boolean(value.ROUTING_API_CLIENT_ID) &&
+    Boolean(value.ROUTING_API_CLIENT_SECRET) &&
+    Boolean(value.ROUTING_API_USERNAME) &&
+    Boolean(value.ROUTING_API_PASSWORD);
+
+  if (!hasStaticToken && !hasCredentialSet) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ROUTING_API_TOKEN"],
+      message: "Provide either ROUTING_API_TOKEN or the full ROUTING_API_CLIENT_* and ROUTING_API_USERNAME/PASSWORD set."
+    });
+  }
 });
 
 export function getEnv() {
@@ -40,6 +59,10 @@ export function getEnv() {
     APP_URL: process.env.APP_URL,
     ROUTING_API_BASE_URL: process.env.ROUTING_API_BASE_URL,
     ROUTING_API_TOKEN: process.env.ROUTING_API_TOKEN,
+    ROUTING_API_CLIENT_ID: process.env.ROUTING_API_CLIENT_ID,
+    ROUTING_API_CLIENT_SECRET: process.env.ROUTING_API_CLIENT_SECRET,
+    ROUTING_API_USERNAME: process.env.ROUTING_API_USERNAME,
+    ROUTING_API_PASSWORD: process.env.ROUTING_API_PASSWORD,
     MAKE_API_BASE_URL: process.env.MAKE_API_BASE_URL,
     MAKE_API_TOKEN: process.env.MAKE_API_TOKEN,
     MAKE_API_TEAM_ID: process.env.MAKE_API_TEAM_ID,

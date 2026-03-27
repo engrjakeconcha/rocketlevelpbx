@@ -21,6 +21,10 @@ describe("RoutingEngineClient", () => {
       APP_URL: "https://rocketaischedule.jcit.digital",
       ROUTING_API_BASE_URL: "https://api.example.com",
       ROUTING_API_TOKEN: "token",
+      ROUTING_API_CLIENT_ID: "",
+      ROUTING_API_CLIENT_SECRET: "",
+      ROUTING_API_USERNAME: "",
+      ROUTING_API_PASSWORD: "",
       SMTP_HOST: "smtp.example.com",
       SMTP_PORT: "587",
       SMTP_USER: "smtp-user",
@@ -210,5 +214,72 @@ describe("RoutingEngineClient", () => {
         }
       )
     ).rejects.toThrow('Existing timeframe "Business Hours" was not found');
+  });
+
+  it("refreshes the routing token automatically after a 401", async () => {
+    process.env.ROUTING_API_TOKEN = "";
+    process.env.ROUTING_API_CLIENT_ID = "rocketlevel";
+    process.env.ROUTING_API_CLIENT_SECRET = "client-secret";
+    process.env.ROUTING_API_USERNAME = "101@rocketlevel";
+    process.env.ROUTING_API_PASSWORD = "password";
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.endsWith("/tokens")) {
+        return jsonResponse({
+          access_token: "fresh-token",
+          expires_in: 3600
+        });
+      }
+
+      if (url.endsWith("/domains")) {
+        const authHeader = (init?.headers as Record<string, string> | undefined)?.authorization;
+
+        if (authHeader === "Bearer fresh-token") {
+          return jsonResponse([
+            {
+              domain: "rocketlevel",
+              description: "RocketLevel",
+              "time-zone": "US/Eastern",
+              "limits-max-users": 10,
+              "limits-max-call-queues": 5
+            }
+          ]);
+        }
+
+        return new Response(JSON.stringify({ code: 401, message: "The access token provided is invalid." }), {
+          status: 401,
+          headers: {
+            "content-type": "application/json"
+          }
+        });
+      }
+
+      return jsonResponse({ code: 200 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new RoutingEngineClient();
+    const domains = await client.listAccessibleDomains();
+
+    expect(domains).toEqual([
+      {
+        backendDomain: "rocketlevel",
+        description: "RocketLevel",
+        timezone: "America/New_York",
+        policy: {
+          maxUsers: 10,
+          maxCallQueues: 5
+        }
+      }
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.com/tokens",
+      expect.objectContaining({
+        method: "POST"
+      })
+    );
   });
 });

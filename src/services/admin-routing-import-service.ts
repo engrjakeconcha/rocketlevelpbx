@@ -100,8 +100,11 @@ export class AdminRoutingImportService {
       })
     ]);
 
+    type ImportedQueue = Awaited<ReturnType<RoutingEngineClient["listDomainCallqueues"]>>[number];
+    type ImportedQueueMember = Awaited<ReturnType<RoutingEngineClient["listCallqueueMembers"]>>[number];
+
     const queuesWithMembers = await Promise.all(
-      callqueues.map(async (queue) => {
+      callqueues.map(async (queue: ImportedQueue) => {
         const members = await this.routingClient.listCallqueueMembers({
           domain: metadata.domain as string,
           callqueue: queue.id
@@ -113,7 +116,7 @@ export class AdminRoutingImportService {
           extension: queue.extension,
           linearRoutingEnabled: queue.linearRoutingEnabled,
           snapshotJson: toJsonValue(queue.snapshot) as Prisma.InputJsonValue,
-          members: members.map((member) => ({
+          members: members.map((member: ImportedQueueMember) => ({
             externalId: member.externalId,
             displayLabel: member.displayLabel,
             destinationNumber: normalizePhoneNumber(member.destinationNumber),

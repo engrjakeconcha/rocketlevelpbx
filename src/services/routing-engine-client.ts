@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getEnv } from "@/lib/env";
 import { normalizePhoneNumber } from "@/lib/utils/phone";
+import { RoutingEngineTokenManager } from "@/services/routing-engine-token-manager";
 
 const timeframeScopeSchema = z.enum(["domain", "user"]).default("domain");
 
@@ -395,22 +396,28 @@ export class RoutingEngineClient {
     private readonly config = (() => {
       const env = getEnv();
       return {
-        baseUrl: env.ROUTING_API_BASE_URL,
-        token: env.ROUTING_API_TOKEN
+        baseUrl: env.ROUTING_API_BASE_URL
       };
-    })()
+    })(),
+    private readonly tokenManager = new RoutingEngineTokenManager()
   ) {}
 
-  private async request<T>(path: string, init: RequestInit) {
+  private async request<T>(path: string, init: RequestInit, hasRetried = false): Promise<T> {
+    const accessToken = await this.tokenManager.getAccessToken();
     const response = await fetch(`${this.config.baseUrl}${path}`, {
       ...init,
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${this.config.token}`,
+        authorization: `Bearer ${accessToken}`,
         ...(init.headers ?? {})
       },
       cache: "no-store"
     });
+
+    if (response.status === 401 && this.tokenManager.canRefresh() && !hasRetried) {
+      await this.tokenManager.invalidate(accessToken);
+      return this.request<T>(path, init, true);
+    }
 
     if (!response.ok) {
       const body = await response.text();
